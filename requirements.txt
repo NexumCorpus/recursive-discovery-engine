@@ -1,0 +1,7 @@
+# The engine core and the deterministic backend use ONLY the Python standard
+# library, on purpose: the empirical-grounding harness must run anywhere with
+# zero install friction. The LLM backend also uses only stdlib (urllib) to talk
+# to OpenRouter, so there are no hard runtime dependencies.
+#
+# The only optional dependency is pytest, for running the test suite.
+pytest>=7.0
