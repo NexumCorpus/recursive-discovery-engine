@@ -1,8 +1,77 @@
-# Recursive Discovery Engine (RDE) — v10
+# Recursive Discovery Engine (RDE) — v11
 
 A small, runnable system that **explores approaches to a problem, evaluates them
 with real executable evidence, synthesizes genuinely better solutions, and guards
 against collapse** (recombination, drift, shared blind spots, low-value churn).
+
+## Honest assessment (v11)
+
+**Nothing achieves `robust_beats` against the frozen v11 bar — 0/10 prior
+winners, 0/14 in the citable run — and the holdout annotates the two remaining
+declared-charge winners as OVERFIT.** This is the expected outcome, reported
+plainly, and it is the most informative result the project has produced: every
+prior `beats` headline was real *under its own version's bar*, and each bar
+improvement (v8 unfakeable metric → v10 adaptive tier → v11 validated, broadened,
+multi-seed, charge-swept, holdout-checked tier) removed another way to be
+accidentally impressive. Run: `20260610_115502_cache_eviction_deterministic`
+(`claims.json` + `audit/` bundle; `scripts/check_claims.py` passes). In-run
+adaptive tier: 2 beats, 6 matches, 6 below (n_graded=14, selection factor 1.95);
+the recommended artifact grades beats_human at the declared charge (+0.0126
+adaptive-tier margin) — and both in-run beats carry the holdout OVERFIT
+annotation below, which is the operative caveat on that line.
+
+**What the dual-implementation test found (A1):** nothing — and that is the
+finding. An independently written ARC (list-based, from the Megiddo & Modha
+Fig. 4 case structure) agrees **hit-for-hit with the canonical implementation
+across all 63 trace×capacity combinations**; adaptation/scan/loop properties
+hold; LeCaR's deterministic deviation is documented and pinned. The bar's
+references are now validated, not just present.
+
+**The frozen-bar re-grade of every v9/v10 winner** (n_graded=10, selection
+factor 1.83, `scripts/regrade_frozen_bar.py`; full table in
+[docs/V11_NOTES.md](docs/V11_NOTES.md)): 7/10 still beat at the *declared* ghost
+charge (all aux-adaptive — every static blend fell to fragile-matches), but
+**0/10 survive the charge sweep**: at `GHOST_FRAC = 0`, W-TinyLFU (0.930 wCR)
+and 2Q at resident-only cost dominate everything. v10's "survives ghost-free
+accounting" was true against ARC/LeCaR only; the broadened tier closes that gap.
+
+**Benchmark-vs-holdout gaps (A4b):** decisive. In the citable run the two
+in-run winners grade `beats` on the declared benchmark (+0.035 / +0.059 vs the
+reachable tier) yet **lose to W-TinyLFU on the freshly-drawn holdout family by
+−0.171 / −0.137** — gaps of ~0.2 against a 0.05 overfit threshold. The
+threshold-switch idiom's wins are calibrated to the declared suite; they do not
+transfer to drawn cousins of the same regimes. Both ops carry `overfit: true`
+in `claims.json`.
+
+**What changed structurally (the design constitution):** every metric is now
+classified unfakeable / alignable / insulatable before it is wired in. The repo
+**stopped answering "was this invented?"** — its only in-loop novelty metric is
+behavioral profile distance (alignable: gaming it = being behaviorally
+different), and each run emits an `audit/` bundle (post-scrub prompts, all
+fragments including rejected, template-library hash stamped against the
+benchmark version) for an *external* reviewer to judge. Leak rule enforced and
+pinned: prompts carry problems, never rubrics — the worked threshold-switch
+idiom, EWMA constants, quality rubric, and what-scores-well language were all
+scrubbed from every proposer-facing text (full removal diff in
+[docs/V11_NOTES.md](docs/V11_NOTES.md); `test_rubric_scrub_is_in_effect` pins it).
+
+**New bottlenecks:** (1) the holdout result says the real frontier work is now
+*generalization*, not benchmark margin — candidate mechanisms need to win on
+families, not points; (2) the adaptive tier still lacks LIRS and uses one
+deterministic LeCaR variant; (3) the scrubbed-prompt capable-model run — the
+first clean reading of capability-without-idiom — is pending operator
+confirmation; "the models produce nothing admissible without the worked
+example" is a live and informative possibility.
+
+**v11 sequencing (visible in git):** `dc91fe1` v10 baseline → `7d4f4c9`
+**A-bar FROZEN** (dual-validated ARC, 2Q + W-TinyLFU, 5-seed benchmark, declared
+beats/fragile semantics with selection-penalised threshold, charge sweep,
+holdout) → `6b175f8` Half B (ghost observable, `adyn` dynamics, rubric scrub) →
+this commit (Half C: behavioral provenance, audit bundles, claim completions).
+
+---
+
+# (v10, historical) Recursive Discovery Engine — v10
 
 **v10 closes the seams.** A full technical review of v9 found the per-component
 invariants strong but the *boundaries between subsystems* unowned: a verdict that

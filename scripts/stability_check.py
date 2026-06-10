@@ -5,9 +5,12 @@ Usage: python scripts/stability_check.py [N]   (default 5)
 Exit 0 = stable; 1 = any divergence (diff printed).
 """
 
+import functools
 import json
 import subprocess
 import sys
+
+print = functools.partial(print, flush=True)  # background-visible output
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent

@@ -132,3 +132,69 @@ KEPT (and strengthened): the mechanical contract rules, the full causal
 diagnosis channel (failing trace, dist, missed keys, verbatim contract errors),
 and the NAMES of the observables (`aux`, `hit`, `ghost_hit`, `t`) without usage
 examples.
+
+
+## The citable v11 run (20260610_115502_cache_eviction_deterministic)
+
+In-run: 14 ops graded (selection factor 1.95); adaptive tier 2 beats / 6
+matches / 6 below; robust_beats = []; the only beats are the two aux-adaptive
+templates, with engine-derived mechanism lines printed beside every flag.
+
+**HOLDOUT FINDING (the run's headline).** Both in-run winners grade beats on
+the declared benchmark yet LOSE to W-TinyLFU on the freshly-drawn holdout
+family:
+
+    ad_thrash   bench +0.0349  holdout -0.1706  (comparator wtlfu2)  OVERFIT
+    ad_guard15  bench +0.0591  holdout -0.1367  (comparator wtlfu2)  OVERFIT
+
+Gap ~0.2 against the 0.05 threshold. The threshold-switch idiom's wins are
+calibrated to the declared suite's exact parameters and weights; on drawn
+cousins of the same regimes (loop period ~U[45,90], jittered zipf exponent,
+fresh drift seeds, equal weights) W-TinyLFU dominates. Combined with the sweep
+(0/14 robust), v11's verdict layer now says, with evidence at every level:
+the current op family does not robustly beat the best adaptive humans -- the
+real frontier work is GENERALIZATION, not benchmark margin.
+
+Behavioral provenance (alignable, in-loop): the two adaptive winners are also
+the two most behaviorally distant ops from any vocabulary member (ad_thrash
+0.256 from lru4; ad_guard15 0.225 from twoq4) -- profile distance and the
+mechanism lines agree with what the flags say, without the repo ever scoring
+"inventedness".
+
+
+## Multi-seed stability battery -- first attempt: a FINDING, then the clean pass
+
+The first 5-run battery (12:05-12:21) was launched while the full 169-test suite
+was still finishing on the same machine. Result, read directly from the five
+claims.json artifacts (the wrapper process zombied without flushing output --
+scripts/stability_check.py now flushes):
+
+  run 1 (120852, UNDER SUITE LOAD): n_graded=8 -- six ops never proposed
+  runs 2-5 (121201/121516/121828/122141, idle): n_graded=14, and their
+  op_utility maps (both tiers) + fragile annotations are BIT-IDENTICAL to each
+  other AND to the citable run 115502.
+
+Diagnosis (recorded, not hidden): the VERDICT layer is deterministic -- five
+distinct runs with the same admitted vocabulary produce identical maps. What is
+load-sensitive is the PROPOSAL TRAJECTORY: directives consume timing-noise
+signals (the v1 noise-aware stall detector, by design wall-clock-aware), so
+heavy machine load changes which rounds propose, hence WHICH ops exist to be
+graded. The claim layer makes this detectable rather than silent: `n_graded`
+is recorded per run, and the selection-penalised beats threshold scales with
+it. Acceptance therefore requires an UNLOADED machine -- rerun below.
+
+
+## Multi-seed stability acceptance -- CLEAN PASS (idle machine, 2026-06-10)
+
+    run 1/5: 20260610_164517_cache_eviction_deterministic  beats(adaptive)=2
+    run 2/5: 20260610_164808_cache_eviction_deterministic  beats(adaptive)=2
+    run 3/5: 20260610_165100_cache_eviction_deterministic  beats(adaptive)=2
+    run 4/5: 20260610_165352_cache_eviction_deterministic  beats(adaptive)=2
+    run 5/5: 20260610_165644_cache_eviction_deterministic  beats(adaptive)=2
+    STABLE: identical op_utility maps across 5 consecutive runs
+
+The maps also equal the citable run 20260610_115502 -- ten runs total now share
+the identical 14-op verdict (both tiers, fragile annotations, robust_beats=[]).
+Acceptance criterion: met. The documented caveat stands: vocabulary FORMATION
+is load-sensitive (n_graded in claims detects it); the VERDICT given a
+vocabulary is bit-stable.
