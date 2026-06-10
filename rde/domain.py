@@ -117,6 +117,11 @@ class Domain:
     # Measured through the normal harness with driver_src swapped in; the
     # beats_adaptive_human tier is graded against these + the static humans.
     adaptive_baselines: Callable | None = None
+    # v11 C2: proposer-facing texts + the template library, for the per-run
+    # audit bundle (evidence for an external reviewer; never scored in-repo).
+    audit_texts: Callable | None = None
+    # v11 A4b: the holdout generator family (parameters drawn at finalize).
+    holdout_suite: Callable | None = None
     # v10 P5: the domain's maximum declared capacity in cost units (e.g. max CMUL)
     # -- used to set the frontier's memory_ref so every legal capacity has
     # positive resource headroom (0 = derive from the seed as before).

@@ -43,10 +43,11 @@ def test_completeness_gate_penalises_never_renormalises(monkeypatch):
 
     def fake_measure(code, wls, spec, cfg):
         calls["n"] += 1
-        return {w["name"]: 1.0 for w in wls if w["name"] != "bench_loop"}
+        q = {w["name"]: 1.0 for w in wls if w["name"] != "bench_loop"}
+        return {"quality": q, "quality_seeds": {k: [v] for k, v in q.items()}}
 
-    monkeypatch.setattr("rde.engine.measure_recall_on", fake_measure)
-    rec, missing = eng._measure_suite_complete("whatever", suite)
+    monkeypatch.setattr("rde.engine.measure_recall_full", fake_measure)
+    rec, missing, _seeds = eng._measure_suite_complete("whatever", suite)
     assert calls["n"] == 2, "must retry the suite exactly once"
     assert missing == ["bench_loop"], "the missing workload must be FLAGGED"
     assert rec["bench_loop"] == 0.0, "missing must be PENALISED as 0.0"
@@ -118,9 +119,12 @@ def test_cost_cross_check_backstop_trips():
 
 def test_ghost_charging_is_one_rule_applied_once():
     assert ce._baseline_cost_units(2) == 2 * (1 + ce.GHOST_ENTRY_COST_FRAC)
+    # v11: every reference's declared cost flows through THE one charging site
+    # with its declared ratios (ghosts AND sketch slots -- no side deals).
     for ref in ce.adaptive_baselines():
-        cmul = int(ref["label"].lstrip("arclecr"))
-        assert ref["cost_units"] == ce._baseline_cost_units(cmul), ref["label"]
+        assert ref["cost_units"] == ce._baseline_cost_units(
+            ref["cmul"], ghost_ratio=ref["ghost_ratio"],
+            sketch_slots_ratio=ref["sketch_slots_ratio"]), ref["label"]
 
 
 def test_arc_reference_sanity_vs_lru():

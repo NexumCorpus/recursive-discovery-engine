@@ -19,6 +19,10 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
+import zlib
+
+GHOST_FRAC_DEFAULT = 0.25   # mirrors cache_eviction.GHOST_ENTRY_COST_FRAC (pinned by test)
 import os
 import re
 import time
@@ -33,7 +37,7 @@ from .config import Config
 from .domain import Domain
 from .fingerprint import assess_novelty, fingerprint
 from .frontier import Frontier, FrontierPoint
-from .grounding import (GroundingSpec, all_safety_violations, baseline_from,
+from .grounding import (GroundingSpec, all_safety_violations, baseline_from, measure_recall_full,
                         diagnose, fitness, ground, measure_recall_on,
                         probe_generator, score)
 from .memory import Memory
@@ -161,6 +165,14 @@ class Engine:
         self._human_frontier_suite = -1          # suite size the cache was built on
         self._adaptive_frontier: list | None = None   # v10: + ARC/LeCaR references
         self._adaptive_frontier_suite = -1
+        # v11: raw baseline measurements kept for the charge sweep / holdout /
+        # multi-seed comparisons: statics = [(label, code, q, seeds, mem)],
+        # refs = [(label, driver_src, stub, q, seeds, cmul, ghost_ratio, sketch)].
+        self._static_meas: list = []
+        self._ref_meas: list = []
+        self._op_exposed: dict = {}              # v11 C3: op -> {attack names}
+        self._op_grade_data: dict = {}           # v11: op -> {seeds, rec} at grading
+        self._audit_rejected: list = []          # v11 C2: rejected proposals
         self.v6_summary: dict = {}               # surfaced in the report
         # v6: best policy CODE per proposed op, recorded as policies are processed so
         # utility can be computed even after bounded memory evicts the Approach.
@@ -360,6 +372,13 @@ class Engine:
                 g = self.vocab.generators.get(wl_name)
                 if g and g.origin.is_proposed:
                     g.exposed_a_candidate = True
+            # v11 C3: record WHICH attacks collapsed policies using each proposed
+            # op (still non-gating -- no longer invisible to the claim layer).
+            for nm in (a.ops_used or []):
+                e = self.vocab.op_entry(nm)
+                if e and e.origin.is_proposed:
+                    self._op_exposed.setdefault(nm, set()).update(
+                        w for w, _ in exposed)
         if not exposed:
             return
         # Harden the suite: add the exposing workloads to the eval set so EVERY
@@ -499,20 +518,23 @@ class Engine:
         measurement: retry the whole suite once; if still incomplete, score the
         missing workloads 0.0 (penalised) and return their names as an explicit
         `incomplete` flag -- NEVER silently renormalise over the measured subset.
-        Returns (rec_with_full_coverage, missing_names)."""
+        v11 A3: also returns the per-seed quality map (multi-seed workloads).
+        Returns (rec_with_full_coverage, missing_names, per_seed_map)."""
         spec = spec if spec is not None else self.spec
         names = [w["name"] for w in suite]
-        rec = measure_recall_on(code, suite, spec, self.cfg)
+        full = measure_recall_full(code, suite, spec, self.cfg)
+        rec, seeds = dict(full["quality"]), dict(full["quality_seeds"])
         missing = [n for n in names if n not in rec]
         if missing:
-            retry = measure_recall_on(code, suite, spec, self.cfg)
-            merged = dict(rec)
-            merged.update(retry)
-            rec = merged
+            retry = measure_recall_full(code, suite, spec, self.cfg)
+            rec.update(retry["quality"])
+            seeds.update(retry["quality_seeds"])
             missing = [n for n in names if n not in rec]
+        n_seeds = max((len(v) for v in seeds.values()), default=1)
         for n in missing:
             rec[n] = 0.0
-        return rec, missing
+            seeds[n] = [0.0] * n_seeds
+        return rec, missing, seeds
 
     @staticmethod
     def _weighted_quality(rec: dict, suite: list) -> float:
@@ -527,6 +549,27 @@ class Engine:
                 den += wt
         return round(num / den, 4) if den else 0.0
 
+    @staticmethod
+    def _weighted_quality_seeds(seeds_map: dict, suite: list) -> list:
+        """v11 A3: the per-seed weighted benchmark values [q_s1..q_sS] (seed s of
+        every workload is the SAME declared seed index, so pairwise per-seed
+        margins against a baseline are meaningful)."""
+        n_seeds = max((len(v) for v in seeds_map.values()), default=1)
+        out = []
+        for i in range(n_seeds):
+            num = den = 0.0
+            for w in suite:
+                nm = w.get("name")
+                if nm in seeds_map:
+                    vals = seeds_map[nm]
+                    v = vals[i] if i < len(vals) else (
+                        sum(vals) / len(vals) if vals else 0.0)
+                    wt = float(w.get("weight", 1.0))
+                    num += v * wt
+                    den += wt
+            out.append(round(num / den, 4) if den else 0.0)
+        return out
+
     def _human_frontier_points(self) -> list:
         """The HUMAN-only Pareto frontier (best recall per memory) on the CURRENT
         suite, the baseline the utility flag is measured against. Cached per suite
@@ -538,27 +581,32 @@ class Engine:
                 and self._human_frontier_suite == len(suite)):
             return self._human_frontier
         pts = []
+        self._static_meas = []
         for label, code in self.domain.human_baseline_policies(self.vocab):
             # v10 P1: the completeness gate applies SYMMETRICALLY to humans -- an
             # incomplete human measurement (after one retry) is penalised the same
             # way AND flagged at run level, because a silently weakened human
             # baseline corrupts the verdict in the candidates' favour.
-            rec, missing = self._measure_suite_complete(code, suite)
+            rec, missing, smap = self._measure_suite_complete(code, suite)
             if missing:
                 self._human_incomplete.append(
                     {"label": label, "missing": missing})
                 self.log(f"    !! human baseline '{label}' INCOMPLETE after retry: "
                          f"{missing} scored 0.0 -- verdict flagged")
             q = self._weighted_quality(rec, suite)      # v9: weighted benchmark mean
+            qseeds = self._weighted_quality_seeds(smap, suite)
             ev = ground(code, self._op_probe_spec(), self.cfg)
             self._apply_cost_axis(ev, code)      # v8: same exact cost basis as candidates
             mem = ev.peak_memory_bytes if ev.correct else 0
             if mem:
-                pts.append((q, mem))
+                pts.append((q, mem, tuple(qseeds)))
+                self._static_meas.append(
+                    {"label": label, "code": code, "q": q,
+                     "seeds": qseeds, "mem": mem, "rec": rec})
         # Pareto front: keep points not dominated (>= recall at <= memory) by another.
         front = [p for p in pts
                  if not any(o is not p and o[0] >= p[0] and o[1] <= p[1]
-                            and o != p for o in pts)]
+                            and (o[0], o[1]) != (p[0], p[1]) for o in pts)]
         self._human_frontier = front
         self._human_frontier_suite = len(suite)
         return front
@@ -579,28 +627,49 @@ class Engine:
             return self._adaptive_frontier
         base_k = self.spec.workloads[0]["k"] if self.spec.workloads else 10
         pts = list(self._human_frontier_points())
+        self._ref_meas = []
         for ref in hook():
             spec_ref = dataclasses.replace(self.spec, driver_src=ref["driver_src"])
-            rec, missing = self._measure_suite_complete(ref["stub"], suite,
-                                                        spec=spec_ref)
+            rec, missing, smap = self._measure_suite_complete(ref["stub"], suite,
+                                                              spec=spec_ref)
             if missing:
                 self._human_incomplete.append(
                     {"label": ref["label"], "missing": missing})
                 self.log(f"    !! adaptive baseline '{ref['label']}' INCOMPLETE "
                          f"after retry: {missing} scored 0.0 -- verdict flagged")
             q = self._weighted_quality(rec, suite)
+            qseeds = self._weighted_quality_seeds(smap, suite)
             mem = int(round(ref["cost_units"] * base_k * self._BYTES_PER_ENTRY))
-            pts.append((q, mem))
+            pts.append((q, mem, tuple(qseeds)))
+            self._ref_meas.append(
+                {"label": ref["label"], "driver_src": ref["driver_src"],
+                 "stub": ref["stub"], "q": q, "seeds": qseeds, "rec": rec,
+                 "cmul": ref.get("cmul", 0),
+                 "ghost_ratio": ref.get("ghost_ratio", 0.0),
+                 "sketch_slots_ratio": ref.get("sketch_slots_ratio", 0.0)})
         front = [p for p in pts
                  if not any(o is not p and o[0] >= p[0] and o[1] <= p[1]
-                            and o != p for o in pts)]
+                            and (o[0], o[1]) != (p[0], p[1]) for o in pts)]
         self._adaptive_frontier = front
         self._adaptive_frontier_suite = len(suite)
         return front
 
+    # v11 A3: the selection-pressure penalty on the BEATS threshold. With
+    # n_graded ops graded in one run, the chance that SOME op clears a fixed eps
+    # by luck grows; the declared correction is
+    #     eps_beats = utility_eps * (1 + log2(max(n_graded, 2)) / _SELECTION_DIV)
+    # (n=3 -> ~1.40x, n=14 -> ~1.95x, n=30 -> ~2.23x). Declared, not derived:
+    # a Bonferroni-flavoured penalty chosen for monotonicity and reportability;
+    # the exact factor is recorded per run in claims.json.
+    _SELECTION_DIV = 4.0
+
+    def _selection_factor(self, n_graded: int) -> float:
+        return 1.0 + math.log2(max(n_graded, 2)) / self._SELECTION_DIV
+
     def _classify_vs(self, front: list, recall: float, memory: int) -> tuple:
-        """Grade (recall, memory) against a (quality, cost) frontier at <= memory."""
-        reachable = [q for (q, m) in front if m <= memory]
+        """Grade (recall, memory) against a (quality, cost) frontier at <= memory
+        (mean-only path, used for artifact grading)."""
+        reachable = [p[0] for p in front if p[1] <= memory]
         if reachable:
             human = max(reachable)              # best human at <= this memory
         elif front:
@@ -617,6 +686,42 @@ class Engine:
         if margin >= -eps:
             return (UtilityFlag.MATCHES_HUMAN, margin)
         return (UtilityFlag.BELOW_HUMAN, margin)
+
+    def _classify_vs_ms(self, front: list, q_mean: float, q_seeds: list,
+                        memory: int, n_graded: int) -> tuple:
+        """v11 A3 DECLARED multi-seed flag rule. The comparator is the front point
+        with the highest MEAN at <= memory (cheapest point as the v6-style
+        fallback). Per-seed margins are PAIRWISE (same declared seed index for op
+        and comparator). Then:
+          * beats   <=> mean(margins) >  eps * selection_factor(n_graded)
+          * matches <=> mean(margins) >= -eps
+          * below   otherwise
+          * fragile <=> the per-seed margins do not all fall in the same flag
+            region as the mean (the verdict straddles a boundary across seeds).
+        Returns (flag, margin_mean, fragile)."""
+        cand = [p for p in front if p[1] <= memory]
+        comp = (max(cand, key=lambda p: p[0]) if cand
+                else (min(front, key=lambda p: p[1]) if front else None))
+        comp_q = comp[0] if comp else 0.0
+        comp_seeds = list(comp[2]) if (comp and len(comp) > 2 and comp[2]) \
+            else [comp_q] * max(len(q_seeds), 1)
+        S = min(len(q_seeds), len(comp_seeds)) or 1
+        margins = ([q_seeds[i] - comp_seeds[i] for i in range(S)]
+                   if q_seeds else [q_mean - comp_q])
+        m_mean = round(sum(margins) / len(margins), 4)
+        eps = self.cfg.utility_eps
+        eps_beats = eps * self._selection_factor(n_graded)
+
+        def region(m):
+            if m > eps_beats:
+                return UtilityFlag.BEATS_HUMAN
+            if m >= -eps:
+                return UtilityFlag.MATCHES_HUMAN
+            return UtilityFlag.BELOW_HUMAN
+
+        flag = region(m_mean)
+        fragile = any(region(m) is not flag for m in margins)
+        return (flag, m_mean, fragile)
 
     def _classify_utility(self, recall: float, memory: int) -> tuple:
         """STATIC tier (v6 semantics preserved for history continuity):
@@ -764,13 +869,15 @@ class Engine:
             best = None
             best_missing: list = []
             best_rec: dict = {}
+            best_seeds: list = []
             for _cap, (_q_old, mem, code) in sorted(by_cap.items()):
-                rec, missing = self._measure_suite_complete(code, util_suite)
+                rec, missing, smap = self._measure_suite_complete(code, util_suite)
                 q = self._weighted_quality(rec, util_suite)
                 if best is None or q > best[0]:
                     best = (q, mem, code)
                     best_missing = missing
                     best_rec = rec
+                    best_seeds = self._weighted_quality_seeds(smap, util_suite)
             if best is None:
                 continue
             # v10 P4 COHERENCE: a finalize-graded policy must not be invisible to
@@ -806,15 +913,24 @@ class Engine:
                 self.log(f"    !! op '{nm}' utility measurement INCOMPLETE after "
                          f"retry: {best_missing} scored 0.0")
             best_policy[nm] = best
+            self._op_grade_data[nm] = {"seeds": best_seeds, "rec": best_rec}
             q, mem, code = best
-            flag, margin = self._classify_utility(q, mem)
-            aflag, amargin = self._classify_utility_adaptive(q, mem)
+            # v11 A3: both tiers graded under the DECLARED multi-seed rule
+            # (pairwise per-seed margins; selection-penalised beats threshold;
+            # boundary-straddling flags annotated fragile).
+            n_graded = len(self._op_policy_best)
+            flag, margin, frag = self._classify_vs_ms(
+                self._human_frontier_points(), q, best_seeds, mem, n_graded)
+            aflag, amargin, afrag = self._classify_vs_ms(
+                self._adaptive_frontier_points(), q, best_seeds, mem, n_graded)
             e = self.vocab.op_entry(nm)
             if e:
                 e.utility_adaptive = aflag.value
                 e.utility_adaptive_margin = amargin
+                e.utility_adaptive_fragile = afrag
                 e.utility = flag.value
                 e.utility_margin = margin
+                e.utility_fragile = frag
 
         # 2) Self-play tournament (v7): each proposed op's best policy vs the BEST
         #    HUMAN policy ON EACH GENERATOR -- not a fixed incumbent default. A win
@@ -883,13 +999,18 @@ class Engine:
                             # v10 P1: incompleteness is explicit in the history.
                             "incomplete": self._utility_incomplete.get(nm, []),
                             # v10 P3: records are VERSIONED by baseline tier.
-                            "baseline": "static"})
+                            "baseline": "static",
+                            "benchmark": "v11-multiseed",
+                            "fragile": bool(e.utility_fragile) if e else False})
             records.append({"run": run_id, "op": nm,
                             "origin": e.origin.value if e else "?",
                             "utility": e.utility_adaptive if e else "unknown",
                             "margin": e.utility_adaptive_margin if e else 0.0,
                             "incomplete": self._utility_incomplete.get(nm, []),
-                            "baseline": "adaptive"})
+                            "baseline": "adaptive",
+                            "benchmark": "v11-multiseed",
+                            "fragile": bool(e.utility_adaptive_fragile)
+                            if e else False})
         if records:
             try:
                 append_utility_history(self.cfg.utility_history_path, records)
@@ -916,6 +1037,122 @@ class Engine:
                          f"{op_max:.4f} but the frontier's best is {fr_max:.4f} "
                          f"-- investigate; do NOT adjust admission to mask this.")
 
+        # ---- v11 A4a: GHOST-CHARGE SWEEP -- re-grade every op's adaptive flag at
+        # GHOST_ENTRY_COST_FRAC in {0, 0.25, 0.5, 1.0}. No new measurement: only
+        # the references' DECLARED costs move; robust_beats = beats at every point.
+        sweep: dict = {}
+        robust_beats: list = []
+        base_k = self.spec.workloads[0]["k"] if self.spec.workloads else 10
+        fracs = (0.0, 0.25, 0.5, 1.0)
+        if self._ref_meas:
+            n_graded = len(self._op_policy_best)
+            for nm, (q, mem, code) in best_policy.items():
+                seeds = self._op_grade_data.get(nm, {}).get("seeds", [])
+                per_frac = {}
+                for f in fracs:
+                    pts = [(m["q"], m["mem"], tuple(m["seeds"]))
+                           for m in self._static_meas]
+                    for r in self._ref_meas:
+                        cost_u = r["cmul"] * (1.0 + r["ghost_ratio"] * f) \
+                            + r["cmul"] * r["sketch_slots_ratio"] / 16.0
+                        pts.append((r["q"],
+                                    int(round(cost_u * base_k
+                                              * self._BYTES_PER_ENTRY)),
+                                    tuple(r["seeds"])))
+                    front = [p for p in pts
+                             if not any(o[0] >= p[0] and o[1] <= p[1]
+                                        and (o[0], o[1]) != (p[0], p[1])
+                                        for o in pts if o is not p)]
+                    fl, _m, _fr = self._classify_vs_ms(front, q, seeds, mem,
+                                                       n_graded)
+                    per_frac[str(f)] = fl.value
+                sweep[nm] = per_frac
+                if all(v == "beats_human" for v in per_frac.values()):
+                    robust_beats.append(nm)
+
+        # ---- v11 A4b: HOLDOUT FAMILY -- parameters drawn at finalize, seeded by
+        # the run id (recorded -> reproducible given the record). Reported as an
+        # ANNOTATION (holdout_margin / overfit), never as the flag.
+        holdout: dict = {}
+        hold_hook = getattr(self.domain, "holdout_suite", None)
+        beating = [nm for nm in best_policy
+                   if (self.vocab.op_entry(nm) is not None
+                       and (self.vocab.op_entry(nm).utility == "beats_human"
+                            or self.vocab.op_entry(nm).utility_adaptive
+                            == "beats_human"))]
+        if hold_hook and beating:
+            import random as _random
+            run_tag = f"{time.strftime('%Y%m%d')}-{os.getpid()}"
+            hseed = zlib.crc32(run_tag.encode())
+            hsuite = hold_hook(_random.Random(hseed))
+            OVERFIT_GAP = 0.05          # declared: bench-vs-holdout margin gap
+            margins: dict = {}
+            for nm in beating:
+                q, mem, code = best_policy[nm]
+                hrec, _hm, _hs = self._measure_suite_complete(code, hsuite)
+                hq = self._weighted_quality(hrec, hsuite)
+                # comparator = best baseline policy at <= cost on the BENCHMARK,
+                # re-measured on the holdout (statics + refs).
+                cands = [m for m in self._static_meas if m["mem"] <= mem]
+                for r in self._ref_meas:
+                    cost_u = r["cmul"] * (1.0 + r["ghost_ratio"]
+                                          * GHOST_FRAC_DEFAULT) \
+                        + r["cmul"] * r["sketch_slots_ratio"] / 16.0
+                    rmem = int(round(cost_u * base_k * self._BYTES_PER_ENTRY))
+                    if rmem <= mem:
+                        cands.append({"label": r["label"], "code": None,
+                                      "stub": r["stub"],
+                                      "driver_src": r["driver_src"],
+                                      "q": r["q"], "mem": rmem})
+                comp = max(cands, key=lambda m: m["q"]) if cands else None
+                if comp is None:
+                    continue
+                if comp.get("code") is not None:
+                    crec, _cm, _cs = self._measure_suite_complete(
+                        comp["code"], hsuite)
+                else:
+                    spec_ref = dataclasses.replace(
+                        self.spec, driver_src=comp["driver_src"])
+                    crec, _cm, _cs = self._measure_suite_complete(
+                        comp["stub"], hsuite, spec=spec_ref)
+                cq = self._weighted_quality(crec, hsuite)
+                e = self.vocab.op_entry(nm)
+                bench_margin = (e.utility_adaptive_margin
+                                if e and e.utility_adaptive == "beats_human"
+                                else (e.utility_margin if e else 0.0))
+                hold_margin = round(hq - cq, 4)
+                margins[nm] = {
+                    "bench_margin": bench_margin,
+                    "holdout_margin": hold_margin,
+                    "comparator": comp["label"],
+                    "overfit": bool(bench_margin - hold_margin > OVERFIT_GAP)}
+            holdout = {"seed": hseed,
+                       "suite": [{"name": w["name"], "dist": w["dist"],
+                                  "seeds": w["seeds"]} for w in hsuite],
+                       "margins": margins}
+
+        # ---- v11 C1: BEHAVIORAL provenance (the repo's ONLY in-loop novelty
+        # metric -- driver-measured per-regime CR profile distance to the nearest
+        # existing vocabulary member; gaming it = being behaviorally different,
+        # which is the goal, i.e. ALIGNABLE per the design constitution. No
+        # AST/prompt-similarity here, ever: that judgment is insulatable and the
+        # audit bundle exists for it).
+        behavioral: dict = {}
+        wl_names = [w["name"] for w in util_suite]
+        member_profiles = {m["label"]: m["rec"] for m in self._static_meas}
+        member_profiles.update({r["label"]: r["rec"] for r in self._ref_meas})
+        for nm, (q, mem, code) in best_policy.items():
+            rec = self._op_grade_data.get(nm, {}).get("rec", {})
+            best_d, best_lbl = None, ""
+            for lbl, prof in member_profiles.items():
+                d = max(abs(rec.get(w, 0.0) - prof.get(w, 0.0))
+                        for w in wl_names) if wl_names else 0.0
+                if best_d is None or d < best_d:
+                    best_d, best_lbl = d, lbl
+            behavioral[nm] = {"nearest": best_lbl,
+                              "distance": round(best_d or 0.0, 4)}
+            member_profiles[nm] = rec          # later ops compare to earlier ones
+
         self.v6_summary = {
             "incoherent": incoherent,
             "utility": {"beats_human": prov["beats_human"],
@@ -934,6 +1171,37 @@ class Engine:
             # v10 P1: explicit completeness flags (empty == fully measured).
             "incomplete": dict(self._utility_incomplete),
             "human_baseline_incomplete": list(self._human_incomplete),
+            # ---- v11 ----
+            "benchmark_version": ("v11-multiseed"
+                                  if any(w.get("seeds") for w in util_suite)
+                                  else "v10"),
+            "n_graded": len(self._op_policy_best),
+            "selection_factor": round(
+                self._selection_factor(len(self._op_policy_best)), 4),
+            "fragile": {e.name: bool(e.utility_adaptive_fragile
+                                     or e.utility_fragile)
+                        for e in self.vocab.proposed_ops()},
+            "sensitivity": sweep,
+            "robust_beats": robust_beats,
+            "holdout": holdout,
+            "behavioral_distance": behavioral,
+            "exposed_on": {nm: sorted(v)
+                           for nm, v in self._op_exposed.items()},
+            "mechanisms": {nm: _mechanism_line(best_policy[nm][2])
+                           for nm in best_policy},
+            "booleans": {
+                "any_robust_beats": bool(robust_beats),
+                "all_robust_beats_are_adaptive": bool(robust_beats) and all(
+                    "aux" in (best_policy[nm][2] or "")
+                    for nm in robust_beats),
+                "any_winner_exposed": any(
+                    nm in self._op_exposed for nm in robust_beats),
+                "any_fragile_winner": any(
+                    (self.vocab.op_entry(nm) is not None
+                     and (self.vocab.op_entry(nm).utility_adaptive_fragile
+                          or self.vocab.op_entry(nm).utility_fragile))
+                    for nm in robust_beats),
+            },
         }
 
     def _op_probe_spec(self) -> GroundingSpec:
@@ -1006,6 +1274,9 @@ class Engine:
 
     def _log_reject_op(self, ctx: RoundContext, p, why: str) -> None:
         self._rejected_op_names.add(p.name)     # memo: do not re-screen next round
+        self._audit_rejected.append({           # v11 C2: rejected fragments are
+            "name": p.name, "kind": p.kind,     # evidence too
+            "fragment": str(p.fragment)[:300], "reason": why[:200]})
         self.log(f"    vocab- op '{p.name}' <{p.kind}> REJECTED: {why}")
         self.memory.add_insight(Insight(
             iteration=ctx.iteration, kind="failure",
@@ -1705,9 +1976,55 @@ class Engine:
             "recommended_grade": imp.get("recommended_grade"),
             "frontier_hypervolume": imp.get("frontier_hypervolume"),
             "frontier_points": imp.get("frontier_points"),
+            # ---- v11 claim layer ----
+            "benchmark_version": v6.get("benchmark_version"),
+            "n_graded": v6.get("n_graded"),
+            "selection_factor": v6.get("selection_factor"),
+            "fragile": v6.get("fragile"),
+            "sensitivity": v6.get("sensitivity"),
+            "robust_beats": v6.get("robust_beats"),
+            "holdout": v6.get("holdout"),
+            "behavioral_distance": v6.get("behavioral_distance"),
+            "exposed_on": v6.get("exposed_on"),
+            "mechanisms": v6.get("mechanisms"),
+            "booleans": v6.get("booleans"),
         }
+        # v11 C2: version-stamp the CURATION loop -- the template-library hash is
+        # recorded against the benchmark version, so a template added after
+        # results existed on this benchmark version is detectable as post-hoc.
+        audit_hook = getattr(self.domain, "audit_texts", None)
+        audit = audit_hook() if audit_hook else {}
+        if audit.get("template_library") is not None:
+            import hashlib
+            claims["template_hash"] = hashlib.sha256(
+                audit["template_library"].encode("utf-8")).hexdigest()[:16]
         (run_dir / "claims.json").write_text(
             json.dumps(claims, indent=2), encoding="utf-8")
+
+        # v11 C2: the AUDIT BUNDLE -- evidence for an EXTERNAL reviewer to judge
+        # invention-vs-interpolation. The repo emits evidence here and never
+        # scores that judgment (design constitution: it is insulatable).
+        audit_dir = run_dir / "audit"
+        audit_dir.mkdir(exist_ok=True)
+        prov = result.vocab_provenance or {}
+        bundle = {
+            "run_id": run_dir.name,
+            "benchmark_version": v6.get("benchmark_version"),
+            "template_hash": claims.get("template_hash"),
+            "fragments_admitted": prov.get("proposed_op_fragments", {}),
+            "fragments_rejected": list(self._audit_rejected),
+            "mechanisms": v6.get("mechanisms"),
+        }
+        (audit_dir / "bundle.json").write_text(
+            json.dumps(bundle, indent=2), encoding="utf-8")
+        if audit:
+            nl = chr(10)
+            parts = ["# Proposer-facing texts (post-scrub), verbatim"]
+            for label, txt in audit.items():
+                parts.append(nl + "## " + label + nl + nl + "```" + nl
+                             + str(txt) + nl + "```" + nl)
+            (audit_dir / "prompts.md").write_text(nl.join(parts),
+                                                  encoding="utf-8")
 
         with (run_dir / "iterations.jsonl").open("w", encoding="utf-8") as fh:
             for rec in result.iterations:
@@ -1730,6 +2047,32 @@ class Engine:
 # --------------------------------------------------------------------------- #
 # Human-readable report
 # --------------------------------------------------------------------------- #
+
+def _mechanism_line(code: str) -> str:
+    """v11 C3: an ENGINE-DERIVED mechanism summary from the AST -- printed beside
+    every model-written rationale so narrative and structure can be compared.
+    Unfakeable: computed from the code, not the story about it."""
+    import ast as _ast
+    try:
+        tree = _ast.parse(code)
+    except SyntaxError:
+        return "unparseable"
+    fns = {n.name: n for n in _ast.walk(tree) if isinstance(n, _ast.FunctionDef)}
+    fn = fns.get("_evict_score_aux") or fns.get("_evict_score")
+    if fn is None:
+        return "no score function"
+    names = {n.id for n in _ast.walk(fn) if isinstance(n, _ast.Name)}
+    reads = sorted(names & {"la", "fr", "ins", "t", "aux", "ghost_hit"})
+    branches = sum(1 for n in _ast.walk(fn)
+                   if isinstance(n, (_ast.IfExp, _ast.If)))
+    parts = [f"reads {{{', '.join(reads)}}}"]
+    parts.append(f"{branches} branch(es)" if branches else "branchless")
+    if "aux" in names:
+        parts.append("aux-driven regime switch" if branches else "aux-blended")
+    if "_on_access" in fns:
+        parts.append("custom aux dynamics")
+    return "; ".join(parts)
+
 
 def format_report(r: RunResult) -> str:
     L = []

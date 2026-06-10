@@ -198,6 +198,14 @@ def gen_workload(n, dist, seed):
     if dist == "zipf":                          # skewed popularity (LFU/LRU decent)
         U = 60
         return [int(U * (rng.random() ** 2.5)) for _ in range(n)]
+    if dist.startswith("zipfx:"):               # v11 A4b: jittered-exponent zipf
+        try:                                    # "zipfx:e=2.7" (holdout family)
+            e = float(dist.split("e=", 1)[1])
+        except (IndexError, ValueError):
+            e = 2.5
+        e = min(max(e, 1.0), 5.0)
+        U = 60
+        return [int(U * (rng.random() ** e)) for _ in range(n)]
     if dist == "recency":                       # bursty re-reference (LRU shines)
         out = []
         while len(out) < n:
@@ -341,15 +349,20 @@ MEANINGFUL_CLASSES = [AlgoClass.RECENCY, AlgoClass.FREQUENCY,
 # no regime dominates the mean just by being easy. This is what `beats_human`
 # means in v9: a higher WEIGHTED COMPETITIVE RATIO than every human policy at <=
 # equal declared capacity, on a suite fixed in advance.
+# v11 A3: S=5 DECLARED seeds per benchmark workload, run inside one subprocess
+# per policy; quality per workload = mean CR over seeds; per-seed values feed the
+# declared beats/fragile flag semantics in the engine.
+BENCH_SEEDS = [1234, 5678, 9012, 3456, 7890]
+
 BENCHMARK_SUITE = [
-    {"name": "zipf",      "n": 6000, "k": 10, "dist": "zipf",          "weight": 0.20},
-    {"name": "recency",   "n": 6000, "k": 10, "dist": "recency",       "weight": 0.15},
-    {"name": "drift",     "n": 6000, "k": 10, "dist": "drift",         "weight": 0.20},
-    {"name": "mixed",     "n": 6000, "k": 10, "dist": "mixed",         "weight": 0.15},
+    {"name": "zipf",      "n": 6000, "k": 10, "dist": "zipf",          "weight": 0.20, "seeds": BENCH_SEEDS},
+    {"name": "recency",   "n": 6000, "k": 10, "dist": "recency",       "weight": 0.15, "seeds": BENCH_SEEDS},
+    {"name": "drift",     "n": 6000, "k": 10, "dist": "drift",         "weight": 0.20, "seeds": BENCH_SEEDS},
+    {"name": "mixed",     "n": 6000, "k": 10, "dist": "mixed",         "weight": 0.15, "seeds": BENCH_SEEDS},
     {"name": "bench_loop", "n": 6000, "k": 10,
-     "dist": "param:period=60;noise=0.0;skew=0.0",                  "weight": 0.10},
-    {"name": "bench_scan", "n": 6000, "k": 10, "dist": "scan",         "weight": 0.10},
-    {"name": "bench_antag", "n": 6000, "k": 10, "dist": "antagonistic", "weight": 0.10},
+     "dist": "param:period=60;noise=0.0;skew=0.0",                  "weight": 0.10, "seeds": BENCH_SEEDS},
+    {"name": "bench_scan", "n": 6000, "k": 10, "dist": "scan",         "weight": 0.10, "seeds": BENCH_SEEDS},
+    {"name": "bench_antag", "n": 6000, "k": 10, "dist": "antagonistic", "weight": 0.10, "seeds": BENCH_SEEDS},
 ]
 
 
@@ -489,27 +502,40 @@ DRIVER_SRC = inspect.getsource(_driver_solve)
 GHOST_ENTRY_COST_FRAC = 0.25
 
 
-def _baseline_cost_units(cmul: int, ghost_ratio: float = 1.0) -> float:
-    """Declared cost units for a policy with ghosts (the ONE place the ghost rule
-    is applied). ghost_ratio = ghost capacity as a fraction of resident capacity."""
-    return cmul * (1.0 + ghost_ratio * GHOST_ENTRY_COST_FRAC)
+# v11 A2: sketch metadata (W-TinyLFU frequency counters + doorkeeper bits) is
+# charged through the SAME single site. One counter slot is a clamped 4-bit
+# counter in a dict slot (~1 machine word of payload vs ~4 for a resident entry
+# carrying key + [la, fr, ins]); the doorkeeper's ~1 bit/entry budget is folded
+# into the declared slots-per-entry ratio rather than given a side deal.
+SKETCH_SLOT_COST_FRAC = 1.0 / 16.0
 
 
-def _arc_reference(trace, k):
-    """ARC (Megiddo & Modha) -- trusted reference. T1/T2 resident, B1/B2 ghosts,
-    adaptive target p. Deterministic: dicts in insertion order are the LRU lists.
-    Capacity from the stub candidate's CMUL (the stub's score/update are unused).
-    Ghost population obeys |B1|+|B2| <= c (DBL invariant once resident is full);
-    an explicit trim enforces the declared bound in transient states."""
-    import candidate as _c
-    cmul = _c.CMUL
-    if not isinstance(cmul, int) or isinstance(cmul, bool) or not (1 <= cmul <= 4):
-        raise ValueError("CMUL must be an int in [1, 4]")
-    c = max(cmul * k, 4)
+def _baseline_cost_units(cmul: int, ghost_ratio: float = 1.0,
+                         sketch_slots_ratio: float = 0.0) -> float:
+    """Declared cost units for a policy with metadata -- the ONE place the
+    metadata-charging rules are applied (ghosts AND sketch slots; v11 A2: no
+    per-policy accounting side deals). ghost_ratio = ghost capacity / resident
+    capacity; sketch_slots_ratio = counter slots per resident entry."""
+    return cmul * (1.0 + ghost_ratio * GHOST_ENTRY_COST_FRAC
+                   + sketch_slots_ratio * SKETCH_SLOT_COST_FRAC)
+
+
+def _arc_seq(trace, cap):
+    """ARC (Megiddo & Modha 2003, Fig. 4) -- THE canonical, single-source
+    implementation: the trusted driver text embeds THIS function (via getsource),
+    and the v11 A1 hit-for-hit agreement test compares THIS function against an
+    independently written implementation. Returns (per-access hit list, final p).
+
+    Declared conventions (the independent implementation declares the same):
+      * LRU order = dict insertion order (move-to-MRU = delete + reinsert);
+      * adaptation deltas use INTEGER division floored at 1:
+        d1 = max(1, |B2| // max(1, |B1|)), d2 = max(1, |B1| // max(1, |B2|));
+      * Case IV(a) with |T1| == c and B1 empty drops the T1 LRU WITHOUT a ghost;
+      * ghosts additionally trimmed to <= cap (the declared charging bound;
+        unreachable under the DBL invariants once the cache is warm)."""
     t1, t2, b1, b2 = {}, {}, {}, {}
     p = 0
-    hits = 0
-    n = len(trace)
+    hits = []
 
     def _replace(in_b2):
         if t1 and (len(t1) > p or (in_b2 and len(t1) == p)):
@@ -522,7 +548,7 @@ def _arc_reference(trace, k):
             b2[lru] = True
 
     def _trim_ghosts():
-        while len(b1) + len(b2) > c:                 # declared ghost bound: <= c
+        while len(b1) + len(b2) > cap:
             g = b1 if len(b1) >= len(b2) else b2
             del g[next(iter(g))]
 
@@ -530,36 +556,198 @@ def _arc_reference(trace, k):
         if x in t1:
             del t1[x]
             t2[x] = True
-            hits += 1
+            hits.append(True)
         elif x in t2:
             del t2[x]
-            t2[x] = True                              # move to MRU
-            hits += 1
+            t2[x] = True
+            hits.append(True)
         elif x in b1:
-            p = min(c, p + max(1, len(b2) // max(1, len(b1))))
+            p = min(cap, p + max(1, len(b2) // max(1, len(b1))))
             _replace(False)
             del b1[x]
             t2[x] = True
+            hits.append(False)
         elif x in b2:
             p = max(0, p - max(1, len(b1) // max(1, len(b2))))
             _replace(True)
             del b2[x]
             t2[x] = True
+            hits.append(False)
         else:
-            if len(t1) + len(b1) == c:
-                if len(t1) < c:
+            if len(t1) + len(b1) == cap:
+                if len(t1) < cap:
                     del b1[next(iter(b1))]
                     _replace(False)
                 elif t1:
-                    del t1[next(iter(t1))]            # L1 all-resident: drop LRU
-            elif (len(t1) + len(b1) < c
-                    and len(t1) + len(t2) + len(b1) + len(b2) >= c):
-                if len(t1) + len(t2) + len(b1) + len(b2) >= 2 * c and b2:
+                    del t1[next(iter(t1))]
+            elif (len(t1) + len(b1) < cap
+                    and len(t1) + len(t2) + len(b1) + len(b2) >= cap):
+                if len(t1) + len(t2) + len(b1) + len(b2) >= 2 * cap and b2:
                     del b2[next(iter(b2))]
                 _replace(False)
             t1[x] = True
+            hits.append(False)
         _trim_ghosts()
-    return (hits / n if n else 1.0, c)
+    return hits, p
+
+
+def _arc_entry(trace, k):
+    """Thin driver entry: capacity from the stub candidate's CMUL; the algorithm
+    is the single-source _arc_seq embedded in the same driver text."""
+    import candidate as _c
+    cmul = _c.CMUL
+    if not isinstance(cmul, int) or isinstance(cmul, bool) or not (1 <= cmul <= 4):
+        raise ValueError("CMUL must be an int in [1, 4]")
+    c = max(cmul * k, 4)
+    hits, _p = _arc_seq(trace, c)
+    n = len(trace)
+    return (sum(hits) / n if n else 1.0, c)
+
+
+def _twoq_seq(trace, cap):
+    """2Q (Johnson & Shasha 1994, full version) -- canonical trusted reference.
+    A1in = FIFO of Kin = max(1, cap//4); Am = LRU over the remaining residency;
+    A1out = ghost FIFO of size cap (keys only -> charged via the one ghost rule).
+    Hits in A1in do not promote (per the paper); an A1out ghost hit promotes to
+    Am; Am evictions are discarded without a ghost (per the paper). Returns the
+    per-access hit list."""
+    kin = max(1, cap // 4)
+    a1in, a1out, am = {}, {}, {}
+    hits = []
+
+    def _reclaim():
+        if len(a1in) + len(am) < cap:
+            return
+        if len(a1in) > kin:
+            victim = next(iter(a1in))
+            del a1in[victim]
+            a1out[victim] = True
+            while len(a1out) > cap:
+                del a1out[next(iter(a1out))]
+        elif am:
+            del am[next(iter(am))]
+        elif a1in:
+            victim = next(iter(a1in))
+            del a1in[victim]
+            a1out[victim] = True
+
+    for x in trace:
+        if x in am:
+            del am[x]
+            am[x] = True
+            hits.append(True)
+        elif x in a1in:
+            hits.append(True)
+        elif x in a1out:
+            del a1out[x]
+            _reclaim()
+            am[x] = True
+            hits.append(False)
+        else:
+            _reclaim()
+            a1in[x] = True
+            hits.append(False)
+    return hits
+
+
+def _twoq_entry(trace, k):
+    import candidate as _c
+    cmul = _c.CMUL
+    if not isinstance(cmul, int) or isinstance(cmul, bool) or not (1 <= cmul <= 4):
+        raise ValueError("CMUL must be an int in [1, 4]")
+    c = max(cmul * k, 4)
+    hits = _twoq_seq(trace, c)
+    n = len(trace)
+    return (sum(hits) / n if n else 1.0, c)
+
+
+def _wtlfu_seq(trace, cap):
+    """W-TinyLFU (Einziger, Friedman & Manes 2017) -- canonical trusted reference
+    with the deterministic simplifications DECLARED here:
+      * window = max(1, cap//10) plain LRU; main = SLRU with probation =
+        max(1, main//5) and protected = the rest;
+      * the frequency sketch is an EXACT dict of 4-bit-clamped counters (no hash
+        collisions -- strictly MORE accurate than a real CM sketch, so this
+        reference is if anything too strong, never too weak) with the standard
+        halving every 10*cap accesses; the doorkeeper is an exact set, reset at
+        each halving;
+      * admission on window eviction: the candidate displaces the probation LRU
+        victim only if its estimate is STRICTLY higher (ties favour the
+        incumbent, as published).
+    Cost: 8 sketch slots per resident entry (counters + doorkeeper budget),
+    charged through the single _baseline_cost_units site. Returns hit list."""
+    win_cap = max(1, cap // 10)
+    main_cap = cap - win_cap
+    prob_cap = max(1, main_cap // 5)
+    prot_cap = max(0, main_cap - prob_cap)
+    window, prob, prot = {}, {}, {}
+    freq = {}
+    door = set()
+    hits = []
+    reset_period = 10 * cap
+
+    def _tick(x):
+        if x in door:
+            freq[x] = min(15, freq.get(x, 0) + 1)
+        else:
+            door.add(x)
+
+    def _est(x):
+        return freq.get(x, 0) + (1 if x in door else 0)
+
+    def _halve():
+        for kk in list(freq):
+            freq[kk] //= 2
+            if not freq[kk]:
+                del freq[kk]
+        door.clear()
+
+    for i in range(len(trace)):
+        x = trace[i]
+        if i and i % reset_period == 0:
+            _halve()
+        _tick(x)
+        if x in window:
+            del window[x]
+            window[x] = True
+            hits.append(True)
+        elif x in prot:
+            del prot[x]
+            prot[x] = True
+            hits.append(True)
+        elif x in prob:
+            del prob[x]
+            prot[x] = True
+            if len(prot) > prot_cap:
+                demoted = next(iter(prot))
+                del prot[demoted]
+                prob[demoted] = True
+            hits.append(True)
+        else:
+            hits.append(False)
+            window[x] = True
+            if len(window) > win_cap:
+                cand = next(iter(window))
+                del window[cand]
+                if len(prob) + len(prot) < main_cap:
+                    prob[cand] = True
+                elif prob:
+                    victim = next(iter(prob))
+                    if _est(cand) > _est(victim):
+                        del prob[victim]
+                        prob[cand] = True
+    return hits
+
+
+def _wtlfu_entry(trace, k):
+    import candidate as _c
+    cmul = _c.CMUL
+    if not isinstance(cmul, int) or isinstance(cmul, bool) or not (1 <= cmul <= 4):
+        raise ValueError("CMUL must be an int in [1, 4]")
+    c = max(cmul * k, 4)
+    hits = _wtlfu_seq(trace, c)
+    n = len(trace)
+    return (sum(hits) / n if n else 1.0, c)
 
 
 def _lecar_reference(trace, k):
@@ -609,24 +797,40 @@ def _lecar_reference(trace, k):
     return (hits / n if n else 1.0, c)
 
 
-ARC_DRIVER_SRC = inspect.getsource(_arc_reference).replace(
-    "def _arc_reference(", "def _driver_solve(")
+ARC_DRIVER_SRC = (inspect.getsource(_arc_seq) + "\n\n"
+                  + inspect.getsource(_arc_entry).replace(
+                      "def _arc_entry(", "def _driver_solve("))
+TWOQ_DRIVER_SRC = (inspect.getsource(_twoq_seq) + "\n\n"
+                   + inspect.getsource(_twoq_entry).replace(
+                       "def _twoq_entry(", "def _driver_solve("))
+WTLFU_DRIVER_SRC = (inspect.getsource(_wtlfu_seq) + "\n\n"
+                    + inspect.getsource(_wtlfu_entry).replace(
+                        "def _wtlfu_entry(", "def _driver_solve("))
 LECAR_DRIVER_SRC = inspect.getsource(_lecar_reference).replace(
     "def _lecar_reference(", "def _driver_solve(")
 
 
 def adaptive_baselines() -> list:
-    """The adaptive HUMAN tier: ARC + LeCaR-style at each legal capacity. Each
-    entry is measured through the normal harness with its driver_src swapped in
-    and an inert stub candidate carrying only the capacity (CMUL)."""
+    """The adaptive HUMAN tier (v11 A2: ARC, LeCaR-style, 2Q, W-TinyLFU) at each
+    legal capacity. Each entry is measured through the normal harness with its
+    driver_src swapped in and an inert stub candidate carrying only the capacity
+    (CMUL). EVERY entry's metadata is charged through _baseline_cost_units --
+    the single charging site -- with its declared ratios."""
     out = []
+    refs = [
+        ("arc", ARC_DRIVER_SRC, 1.0, 0.0),       # ghosts <= cap (DBL bound)
+        ("lecar", LECAR_DRIVER_SRC, 1.0, 0.0),   # one history dict capped at cap
+        ("twoq", TWOQ_DRIVER_SRC, 1.0, 0.0),     # A1out ghost FIFO capped at cap
+        ("wtlfu", WTLFU_DRIVER_SRC, 0.0, 8.0),   # 8 sketch slots/entry, no ghosts
+    ]
     for cmul in (1, 2, 4):
         stub = _assemble_policy("lru", "bump_both", cmul)
-        units = _baseline_cost_units(cmul)           # THE ghost rule, applied once
-        out.append({"label": f"arc{cmul}", "driver_src": ARC_DRIVER_SRC,
-                    "stub": stub, "cost_units": units})
-        out.append({"label": f"lecar{cmul}", "driver_src": LECAR_DRIVER_SRC,
-                    "stub": stub, "cost_units": units})
+        for name, src, gr, sr in refs:
+            out.append({"label": f"{name}{cmul}", "driver_src": src,
+                        "stub": stub, "cmul": cmul,
+                        "ghost_ratio": gr, "sketch_slots_ratio": sr,
+                        "cost_units": _baseline_cost_units(
+                            cmul, ghost_ratio=gr, sketch_slots_ratio=sr)})
     return out
 
 
@@ -1083,6 +1287,28 @@ def human_default_policy(vocab: Vocabulary, cap: int) -> str:
     return _assemble_policy("lru", "bump_both", cmul)
 
 
+# v11 A4b: the HOLDOUT FAMILY -- a declared generator family whose parameters
+# are DRAWN at finalize time (seeded by the run id, recorded in claims.json).
+# The declared benchmark stays public for reproducibility; the holdout supplies
+# the entropy the declared suite cannot. A large benchmark-vs-holdout margin gap
+# is an OVERFIT annotation on the op (threshold declared in the engine).
+def holdout_suite(rng) -> list:
+    """3 drawn workloads: loop period ~ U[45,90]; zipf exponent ~ U[2.0,3.0];
+    drift with drawn seeds. Each carries 3 drawn seeds; equal weights."""
+    seeds = [rng.randint(1, 10 ** 6) for _ in range(3)]
+    period = rng.randint(45, 90)
+    expo = round(rng.uniform(2.0, 3.0), 2)
+    return [
+        {"name": "hold_loop", "n": 6000, "k": 10,
+         "dist": f"param:period={period};noise=0.05;skew=0.0",
+         "weight": 1.0, "seeds": seeds},
+        {"name": "hold_zipfx", "n": 6000, "k": 10,
+         "dist": f"zipfx:e={expo}", "weight": 1.0, "seeds": seeds},
+        {"name": "hold_drift", "n": 6000, "k": 10, "dist": "drift",
+         "weight": 1.0, "seeds": [x + 13 for x in seeds]},
+    ]
+
+
 # LLM op-proposer guidance (domain-specific, so the LLM proposes CACHE ops).
 OP_PROPOSER_SYS = (
     "You are the BUILDER extending the primitive vocabulary of a CACHE EVICTION "
@@ -1162,6 +1388,10 @@ DOMAIN = Domain(
     op_kinds=(SCORE, UPDATE, ASCORE),                # v9: + adaptive score kind
     op_str_kinds=(SCORE, UPDATE, ASCORE),            # all fragments are expressions
     benchmark_suite=BENCHMARK_SUITE,                 # v9: weighted utility benchmark
-    adaptive_baselines=adaptive_baselines,           # v10 P3: ARC/LeCaR human tier
+    adaptive_baselines=adaptive_baselines,           # v10+v11: adaptive human tier
+    holdout_suite=holdout_suite,                     # v11 A4b
+    audit_texts=lambda: {"CONTRACT": CONTRACT,
+                         "OP_PROPOSER_SYS": OP_PROPOSER_SYS,
+                         "template_library": repr(_OP_TEMPLATES)},   # v11 C2
     max_policy_cost_units=4,                         # v10 P5: max legal CMUL
 )

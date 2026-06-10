@@ -62,6 +62,9 @@ class OpEntry:
     # semantics for cross-run history continuity; THIS is the headline tier.
     utility_adaptive: str = "unknown"
     utility_adaptive_margin: float = 0.0
+    # v11 A3: boundary-straddling multi-seed verdicts are ANNOTATED, everywhere.
+    utility_fragile: bool = False
+    utility_adaptive_fragile: bool = False
 
 
 @dataclass

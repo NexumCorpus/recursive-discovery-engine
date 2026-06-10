@@ -523,26 +523,40 @@ if all_correct and JOB.get("quality_workloads"):
         # SOLVE crash on a valid stream (a genuine recall collapse -> record 0.0 so
         # the Adversary still exposes the candidate). The old single try/except
         # conflated them, letting a raising generator be admitted as "recall 0.0".
+        # v11 A3: MULTI-SEED -- a workload may declare "seeds": [s1..sS]; every
+        # seed runs INSIDE this one subprocess; quality = mean over seeds and the
+        # per-seed values are recorded (quality_seeds) for spread/fragility
+        # semantics. A generator failure on ANY seed leaves the workload
+        # UNMEASURED (strict, rejectable); a solve failure scores that seed 0.0.
+        _seeds = wl.get("seeds") or [JOB["bench_seed"]]
         try:
-            data = gen_workload(wl["n"], wl["dist"], JOB["bench_seed"])
-            if not isinstance(data, (list, tuple)) or not data:
-                raise TypeError("generator returned a non-sequence / empty stream")
-            for _x in data:
-                if not isinstance(_x, int) or isinstance(_x, bool):
-                    raise TypeError("generator stream is not all ints")
+            _streams = []
+            for _s in _seeds:
+                data = gen_workload(wl["n"], wl["dist"], _s)
+                if not isinstance(data, (list, tuple)) or not data:
+                    raise TypeError("generator returned a non-sequence / empty stream")
+                for _x in data:
+                    if not isinstance(_x, int) or isinstance(_x, bool):
+                        raise TypeError("generator stream is not all ints")
+                _streams.append(data)
         except Exception as e:                    # noqa: BLE001
             state.setdefault("quality_errors", {{}})[wl["name"]] = "gen: " + repr(e)
             _write(state)                         # persist the error record too
             continue                              # NO quality recorded -> rejectable
-        state.setdefault("quality_len", {{}})[wl["name"]] = len(data)
-        try:
-            _exp = oracle(list(data), wl["k"])
-            _got = solve(list(data), wl["k"])
-            _ok, _q = verdict(_got, _exp, data, wl["k"])
-            state["quality"][wl["name"]] = float(_q)
-        except Exception as e:                    # noqa: BLE001
-            state.setdefault("quality_errors", {{}})[wl["name"]] = "solve: " + repr(e)
-            state["quality"][wl["name"]] = 0.0
+        state.setdefault("quality_len", {{}})[wl["name"]] = len(_streams[0])
+        _qs = []
+        for data in _streams:
+            try:
+                _exp = oracle(list(data), wl["k"])
+                _got = solve(list(data), wl["k"])
+                _ok, _q = verdict(_got, _exp, data, wl["k"])
+                _qs.append(float(_q))
+            except Exception as e:                # noqa: BLE001
+                state.setdefault("quality_errors", {{}})[wl["name"]] = \
+                    "solve: " + repr(e)
+                _qs.append(0.0)
+        state["quality"][wl["name"]] = sum(_qs) / len(_qs)
+        state.setdefault("quality_seeds", {{}})[wl["name"]] = _qs
         # v9 review: persist PER WORKLOAD (matching the benchmark phase), so a
         # timeout on workload N preserves the N-1 completed measurements instead
         # of discarding the whole quality map (which read as a spurious 0.0).
@@ -832,6 +846,19 @@ def measure_recall_on(code: str, workloads: list, spec: GroundingSpec,
     res = _run_subprocess(code, spec, cfg, cases=[], do_benchmarks=False,
                           do_memory=False, quality_workloads=workloads)
     return res.get("quality", {}) or {}
+
+
+def measure_recall_full(code: str, workloads: list, spec: GroundingSpec,
+                        cfg: Config) -> dict:
+    """v11 A3: like measure_recall_on but returns the FULL result fields the
+    multi-seed machinery needs: {"quality": {...}, "quality_seeds": {...}}."""
+    if (all_safety_violations(code) or not candidate_ok(code, spec)
+            or driver_shape_violations(code, spec)):
+        return {"quality": {}, "quality_seeds": {}}
+    res = _run_subprocess(code, spec, cfg, cases=[], do_benchmarks=False,
+                          do_memory=False, quality_workloads=workloads)
+    return {"quality": res.get("quality", {}) or {},
+            "quality_seeds": res.get("quality_seeds", {}) or {}}
 
 
 def probe_generator(probe_code: str, workload: dict, spec: GroundingSpec,
