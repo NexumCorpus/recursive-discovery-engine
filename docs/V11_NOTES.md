@@ -77,3 +77,58 @@ W-TinyLFU close that gap. Every op that still beats at the declared charge is
 aux-adaptive; every static blend fell to matches and is FRAGILE
 (boundary-straddling across seeds — the exact knife-edge ops the multi-seed
 semantics were built to expose). This table is the bar Half B must clear.
+
+
+## Half B -- making the bar reachable (landed AFTER the A-bar freeze commit)
+
+**B1 -- driver-owned ghost observable.** The trusted driver keeps a bounded
+ghost list (<= cap, FIFO of evicted keys, reset per trace) and passes a
+per-access `ghost_hit` 0/1 flag into 4-argument `_on_access` dynamics; 3-argument
+v9 candidates keep working (arity-dispatched, pinned). Opt-in via the literal
+`USE_GHOST` knob: single literal 0/1 enforced by the shape screen + a rebind
+census; cost charged through the SAME rule as the references (engine
+GHOST_FRAC_DEFAULT pinned == domain GHOST_ENTRY_COST_FRAC). Soundness stated in
+the driver: the flag is information any ghost-list algorithm legitimately has;
+the candidate sees the flag, never the list, and steers only eviction.
+
+**B2 -- proposable aux dynamics (`adyn`).** A list-expression over
+(aux, hit, ghost_hit, t), following the UPDATE-op fragment precedent;
+`fragment_is_safe` extended with those names for this kind only; malformed
+returns degrade to AUX0 (driver-enforced); rides the domain-curated
+DEFAULT_AUX_SCORE (template text, audit-hashed, never prompt-visible).
+
+**B3 -- rubric scrub (gates the LLM run). Removed from proposer-facing texts:**
+
+From CONTRACT:
+  - the worked EWMA dynamics body `[aux[0] * 0.98 + 0.02 * hit]` ("e.g. an EWMA
+    of the hit flag") -- the canonical taught idiom;
+  - the worked threshold-switch ascore example
+    `(-la) if aux[0] < 0.08 else (la + 30 * fr.bit_length())` and its constants;
+  - the regime-detection coaching sentence ("DETECT a regime (e.g. a loop the
+    cache cannot hold: the EWMA hit-rate collapses) and switch...");
+  - the quality rubric ("QUALITY is the COMPETITIVE RATIO ... weighted across a
+    declared multi-regime benchmark (skew, reuse, drift, loop, scan) -- so
+    robustness across regimes is what scores, not specialisation") and the
+    benchmark-degeneracy rationale for the CMUL bound.
+
+From OP_PROPOSER_SYS:
+  - the seed-op idiom map ("LRU is `la`, LFU is `fr`, FIFO is `ins`, MRU is
+    `-la`") and the worked example "`la + 30 * fr.bit_length()` keeps a hot key
+    warm";
+  - the ENTIRE worked ascore example with thresholds, the EWMA decay/start
+    constants (0.98 / 0.5) and the thrash-collapse coaching;
+  - "QUALITY is the competitive ratio ... ROBUSTNESS across regimes is what
+    scores";
+  - the rationale-shape hint `"<why it helps across regimes>"` (replaced by
+    `"<your reasoning>"`);
+  - the update-op default hint `(default [t, fr + 1, ins])`.
+
+From the self-play steering line (roles.py): "author an op so a policy using it
+BEATS the best human on the Adversary's recent generators" -> "The Adversary's
+recent attack generators are {...}; current policies degrade on them" (problem
+framing, no scoring language).
+
+KEPT (and strengthened): the mechanical contract rules, the full causal
+diagnosis channel (failing trace, dist, missed keys, verbatim contract errors),
+and the NAMES of the observables (`aux`, `hit`, `ghost_hit`, `t`) without usage
+examples.

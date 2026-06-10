@@ -305,6 +305,13 @@ def driver_shape_violations(code: str, spec) -> list:
                 tgt = n.target
             if isinstance(tgt, ast.Name) and tgt.id in literal_ints:
                 continue                # single-literal rule enforced by the gate
+            if (isinstance(tgt, ast.Name) and tgt.id == "USE_GHOST"
+                    and isinstance(getattr(n, "value", None), ast.Constant)
+                    and n.value.value in (0, 1)
+                    and not isinstance(n.value.value, bool)):
+                # v11 B1: the OPTIONAL ghost knob -- a single literal 0/1. The
+                # whole-tree rebind census below keeps source == runtime.
+                continue
             if (isinstance(tgt, ast.Name) and tgt.id == "AUX0"
                     and n.value is not None and _aux0_literal_ok(n.value)):
                 continue
@@ -312,6 +319,11 @@ def driver_shape_violations(code: str, spec) -> list:
             bad.append(f"module-binding:{nm}")
             continue
         bad.append(f"module-stmt:{type(n).__name__}")
+    g_stores = sum(1 for node in ast.walk(tree)
+                   if isinstance(node, ast.Name) and node.id == "USE_GHOST"
+                   and isinstance(node.ctx, ast.Store))
+    if g_stores > 1:
+        bad.append("module-binding:USE_GHOST-rebound")
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.Lambda)):
             a = node.args

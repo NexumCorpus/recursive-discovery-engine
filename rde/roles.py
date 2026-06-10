@@ -758,8 +758,9 @@ class LLMBuilder:
         existing = "; ".join(f"{k}: {ctx.vocab.op_names(k)}" for k in kinds)
         causal_line = (f"CONCRETE FAILURE TO FIX: {causal.brief()}\n"
                        if causal is not None and causal.has_signal else "")
-        target_line = (f"SELF-PLAY: author an op so a policy using it BEATS the best "
-                       f"human on the Adversary's recent generators {recent}.\n"
+        # v11 B3: problem framing only -- name the attacks, no scoring language.
+        target_line = (f"The Adversary's recent attack generators are {recent}; "
+                       f"current policies degrade on them.\n"
                        if recent else "")
         user = (f"{causal_line}{target_line}"
                 f"(secondary) weakness tags: {weak}; frontier_gap={gap:.2f}.\n"

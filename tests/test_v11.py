@@ -247,3 +247,73 @@ def test_zipfx_dist_is_deterministic_and_clamped():
     assert t1 == t2 and all(isinstance(x, int) for x in t1)
     t3 = ce.gen_workload(500, "zipfx:e=999", 7)         # clamped, no blow-up
     assert max(t3) <= 60
+
+
+# --------------------------------------------------------------------------- #
+# Half B -- ghost observable, adyn kind, rubric scrub (pinned exploits/compat)
+# --------------------------------------------------------------------------- #
+
+from rde.grounding import driver_shape_violations, ground                # noqa: E402
+from rde.engine import GHOST_FRAC_DEFAULT                                # noqa: E402
+
+AD_DYN = "[aux[0] * 0.98 + 0.02 * hit, aux[1] * 0.95 + 0.05 * ghost_hit]"
+AD_SC = "(-la) if aux[1] > 0.3 else (la + 30 * fr.bit_length())"
+
+
+def test_adyn_ghost_policy_grounds_and_is_charged():
+    code = ce._assemble_adaptive_full(AD_SC, AD_DYN, 2)
+    assert driver_shape_violations(code, ce.GROUNDING_SPEC) == []
+    ev = ground(code, ce.GROUNDING_SPEC, CFG)
+    assert ev.correct and 0.0 <= ev.quality <= 1.0
+    eng = Engine(CFG, ce.DOMAIN, make_roles_cached())
+    base = 2 * 10 * Engine._BYTES_PER_ENTRY
+    assert eng._policy_cost(code) == int(round(base * (1 + GHOST_FRAC_DEFAULT)))
+    # the charging mirror is PINNED: engine constant == domain constant
+    assert GHOST_FRAC_DEFAULT == ce.GHOST_ENTRY_COST_FRAC
+
+
+def test_legacy_three_arg_on_access_still_works():
+    legacy = ce._assemble_adaptive("(-la) if aux[0] < 0.5 else la", 2)
+    assert ground(legacy, ce.GROUNDING_SPEC, CFG).correct
+
+
+def test_use_ghost_rebind_is_rejected():
+    code = ce._assemble_adaptive_full(AD_SC, AD_DYN, 2)
+    spoof = code.replace("USE_GHOST = 1", "USE_GHOST = 0") + chr(10) + "USE_GHOST = 1"
+    v = driver_shape_violations(spoof, ce.GROUNDING_SPEC)
+    assert any("USE_GHOST" in x for x in v), v
+    assert not ground(spoof, ce.GROUNDING_SPEC, CFG).correct
+    # non-literal knob is also rejected
+    expr = code.replace("USE_GHOST = 1", "USE_GHOST = 1 if True else 0")
+    assert driver_shape_violations(expr, ce.GROUNDING_SPEC)
+
+
+def test_malformed_adyn_degrades_never_inflates():
+    code = ce._assemble_adaptive_full(AD_SC, "'junk'", 2)
+    # 'junk' is not a valid fragment shape for the gate? It IS a str expression;
+    # fragment validation happens at PROPOSAL time; here we pin the DRIVER's
+    # degrade path: a dynamics return that is not a valid aux list resets to AUX0.
+    ev = ground(code, ce.GROUNDING_SPEC, CFG)
+    assert ev.correct and 0.0 <= ev.quality <= 1.0
+
+
+def test_adyn_fragment_validation_names():
+    assert ce.fragment_is_safe(AD_DYN, extra_names=ce._frag_extra(ce.ADYN))
+    # ghost_hit is NOT a legal name for a plain score fragment
+    assert not ce.fragment_is_safe("la + ghost_hit",
+                                   extra_names=ce._frag_extra(ce.SCORE))
+
+
+def test_rubric_scrub_is_in_effect():
+    """B3: no worked idioms, threshold constants, or what-scores-well language in
+    any proposer-facing text; observable NAMES present."""
+    for text in (ce.CONTRACT, ce.OP_PROPOSER_SYS):
+        low = text.lower()
+        assert "0.08" not in text, "taught threshold constant leaked"
+        assert "0.98" not in text, "taught EWMA decay constant leaked"
+        assert "30 * fr.bit_length()" not in text, "worked idiom leaked"
+        assert "is what scores" not in low and "what scores" not in low
+        assert "competitive ratio" not in low, "quality rubric leaked"
+        assert "weight" not in low, "benchmark weights leaked"
+    assert "ghost_hit" in ce.CONTRACT and "ghost_hit" in ce.OP_PROPOSER_SYS
+    assert "aux" in ce.CONTRACT

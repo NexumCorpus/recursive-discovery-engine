@@ -39,7 +39,7 @@ from ..vocab import (GenEntry, GenProposal, OpEntry, OpProposal, Provenance,
 # v9 adds ASCORE: an ADAPTIVE score expression over (la, fr, ins, t, aux) where
 # aux[0] is a trusted EWMA of the per-access hit flag -- enabling regime detection
 # (loop/scan thrash vs skew/reuse) DURING a trace.
-SCORE, UPDATE, ASCORE = "score", "update", "ascore"
+SCORE, UPDATE, ASCORE, ADYN = "score", "update", "ascore", "adyn"
 
 
 CONTRACT = """\
@@ -63,34 +63,37 @@ computes the hit rate. You provide ONLY the eviction LOGIC.
     # 3) The capacity multiplier. The cache holds CMUL * k keys (a SMALL int, 1..4).
     CMUL = 2
 
-OPTIONAL ADAPTIVE EXTENSION (v9) -- regime detection during the trace. You may ALSO
-define, at module top level:
+OPTIONAL ADAPTIVE EXTENSION -- per-trace state your own dynamics maintain. You may
+ALSO define, at module top level (signatures only; the bodies are yours):
 
-    AUX0 = [0.5]                          # initial aux state: <= 8 finite numbers
-    def _on_access(aux, hit, t):          # called on EVERY access; hit is 0 or 1
-        return [aux[0] * 0.98 + 0.02 * hit]   # e.g. an EWMA of the hit flag
-    def _evict_score_aux(la, fr, ins, t, aux):    # scoring that may READ aux
-        return (-la) if aux[0] < 0.08 else (la + 30 * fr.bit_length())
+    AUX0 = [...]                          # initial aux state: <= 8 finite numbers
+    def _on_access(aux, hit, ghost_hit, t):   # called on EVERY access
+        ...                               # return the new aux (list, <= 8 numbers)
+    def _evict_score_aux(la, fr, ins, t, aux):  # scoring that may READ aux
+        ...
 
-The trusted harness carries `aux` through the trace (reset per trace) and uses
-_evict_score_aux instead of _evict_score when present. This lets a policy DETECT a
-regime (e.g. a loop the cache cannot hold: the EWMA hit-rate collapses) and switch
-eviction behaviour mid-trace -- something no static score can do. `hit` is the
-per-access hit FLAG (what any online algorithm observes); you still never see a hit
-COUNT and cannot report one.
+Observables available to your dynamics (names only; how you use them is yours):
+  * aux        -- your own state vector, carried by the trusted harness through the
+                  trace (reset per trace), passed read-only;
+  * hit        -- the per-access hit FLAG, 0 or 1 (what any online algorithm
+                  observes; you never see a count);
+  * ghost_hit  -- 0/1: this missed key was RECENTLY EVICTED (a bounded,
+                  harness-owned ghost list; you see the flag, never the list).
+                  Using it requires declaring `USE_GHOST = 1` (a literal int),
+                  which is charged on the declared cost axis;
+  * t          -- the access clock.
+A 3-argument _on_access(aux, hit, t) is also accepted.
 
 RULES. _evict_score and _on_hit MUST be PURE functions of (la, fr, ins, t) only:
 no globals, no I/O, no randomness, no reading any hit count. Return a number from
 _evict_score and a 3-element list of numbers from _on_hit. _on_access must return a
 list of <= 8 finite numbers (a malformed return is reset to AUX0). CMUL must be a
-literal int in [1, 4], assigned exactly once (caps above 4*k would swallow whole
-benchmark universes and make the competitive ratio vacuously 1.0). You CANNOT report a hit rate and you
-CANNOT beat Belady's offline optimum, because you never see the future -- the
-harness feeds you one key at a time and counts hits itself. QUALITY is the
-COMPETITIVE RATIO hit_rate / Belady-OPT on each trace, weighted across a declared
-multi-regime benchmark (skew, reuse, drift, loop, scan) -- so robustness across
-regimes is what scores, not specialisation. Define the three required symbols at
-module top level. Do not print.
+literal int in [1, 4], assigned exactly once. USE_GHOST, if present, must be a
+single literal 0 or 1. Module top level may contain ONLY: imports, function defs,
+docstrings, CMUL, USE_GHOST, and AUX0. You CANNOT report a hit rate and you CANNOT
+beat Belady's offline optimum, because you never see the future -- the harness
+feeds you one key at a time and counts hits itself. Define the three required
+symbols at module top level. Do not print.
 """
 
 PROBLEM_DESC = (
@@ -418,6 +421,25 @@ def _driver_solve(trace, k):
     on_access = getattr(_c, "_on_access", None)
     score_aux = getattr(_c, "_evict_score_aux", None)
 
+    # v11 B1: DRIVER-OWNED ghost observable, opt-in via the literal-int knob
+    # USE_GHOST (validated 0/1; the engine charges the declared ghost cost through
+    # the same single charging rule as the references). The driver keeps a bounded
+    # ghost list (<= cap, FIFO of evicted keys, reset per trace) and passes a
+    # per-access ghost_hit FLAG into 4-argument _on_access dynamics. SOUNDNESS:
+    # the flag is information any ghost-list algorithm (ARC, 2Q, LeCaR)
+    # legitimately observes about the PAST; the candidate sees the flag, never
+    # the list, never a count -- and it can steer only WHICH key is evicted, the
+    # same legitimate channel as everything else in this contract.
+    use_ghost = getattr(_c, "USE_GHOST", 0)
+    if use_ghost not in (0, 1) or isinstance(use_ghost, bool):
+        raise ValueError("USE_GHOST must be the int 0 or 1")
+    ghosts = {}
+
+    # v11 B2: _on_access may be the v9 3-argument form (aux, hit, t) or the v11
+    # 4-argument form (aux, hit, ghost_hit, t) -- dispatched by arity so every
+    # pre-v11 candidate keeps working unchanged.
+    oa_argc = (on_access.__code__.co_argcount if on_access is not None else 0)
+
     def _aux_ok(v):
         return (isinstance(v, (list, tuple)) and len(v) <= 8
                 and all(isinstance(x, (int, float)) and not isinstance(x, bool)
@@ -445,8 +467,15 @@ def _driver_solve(trace, k):
         key = trace[t]
         st = cache.get(key)
         hit = st is not None
+        ghost_hit = 0
+        if use_ghost and not hit and key in ghosts:
+            ghost_hit = 1
+            del ghosts[key]
         if on_access is not None:
-            new_aux = on_access(tuple(aux), 1 if hit else 0, t)
+            if oa_argc >= 4:
+                new_aux = on_access(tuple(aux), 1 if hit else 0, ghost_hit, t)
+            else:
+                new_aux = on_access(tuple(aux), 1 if hit else 0, t)
             aux = ([float(x) for x in new_aux] if _aux_ok(new_aux)
                    else list(aux0))
         if hit:
@@ -469,6 +498,10 @@ def _driver_solve(trace, k):
                     vk = min(cache, key=lambda _k: _num(score(
                         cache[_k][0], cache[_k][1], cache[_k][2], t)))
                 del cache[vk]
+                if use_ghost:
+                    ghosts[vk] = True
+                    if len(ghosts) > cap:           # declared bound: <= cap
+                        del ghosts[next(iter(ghosts))]
             cache[key] = [t, 1, t]
     return (hits / n if n else 1.0, cap)
 
@@ -888,7 +921,47 @@ def _assemble_policy(score: str, update: str, cmul: int) -> str:
 
 def _frag_extra(kind: str) -> tuple:
     """Extra identifiers a fragment of this kind may reference."""
-    return ("aux",) if kind == ASCORE else ()
+    if kind == ASCORE:
+        return ("aux",)
+    if kind == ADYN:
+        return ("aux", "hit", "ghost_hit")
+    return ()
+
+
+# v11 B2: the domain-curated score an ADYN (proposed aux-DYNAMICS) op rides
+# with. Repo-curated template text -- it appears in the audit bundle's hashed
+# template library, never in a proposer-facing prompt.
+DEFAULT_AUX_SCORE = "(-la) if aux[0] < 0.08 else (la + 30 * fr.bit_length())"
+
+
+def _assemble_adaptive_full(score_expr: str, adyn_expr: str, cmul: int) -> str:
+    """v11 B2: an adaptive policy whose AUX DYNAMICS are themselves the proposed
+    fragment -- a list-expression over (aux, hit, ghost_hit, t), following the
+    UPDATE-op fragment precedent. SOUNDNESS (stated per the v11 spec): the
+    ghost_hit flag is information any ghost-list algorithm (ARC/2Q/LeCaR)
+    legitimately has about the past; the driver owns the ghost list and the
+    candidate sees only the per-access flag; like every other contract input it
+    can steer ONLY which key is evicted. A malformed dynamics return degrades to
+    AUX0 (driver-enforced). Ghost use is declared by the literal USE_GHOST knob
+    and charged by the engine through the same single charging rule as the
+    references."""
+    use_ghost = 1 if "ghost_hit" in adyn_expr else 0
+    L = [
+        "# v11-cache-policy",
+        f"# cmul={cmul}",
+        "def _evict_score(la, fr, ins, t):",
+        "    return la",                    # static fallback (driver prefers aux path)
+        "def _on_hit(la, fr, ins, t):",
+        "    return [t, fr + 1, ins]",
+        "AUX0 = [0.5, 0.0]",
+        "def _on_access(aux, hit, ghost_hit, t):",
+        f"    return {adyn_expr}",
+        "def _evict_score_aux(la, fr, ins, t, aux):",
+        f"    return {score_expr}",
+        f"USE_GHOST = {use_ghost}",
+        f"CMUL = {cmul}",
+    ]
+    return chr(10).join(L)
 
 
 def _assemble_adaptive(ascore_expr: str, cmul: int) -> str:
@@ -1051,6 +1124,15 @@ def assemble_from_vocab(vocab: Vocabulary, rng=None) -> list[tuple]:
                             _assemble_adaptive(vocab.fragment(ASCORE, e.name), c),
                             [e.name]))
             continue
+        if e.kind == ADYN:
+            # v11 B2: proposed aux DYNAMICS ride the domain-curated default score.
+            for c in (2, 4):
+                out.append((f"policy_{e.name}_c{c}",
+                            _assemble_adaptive_full(
+                                DEFAULT_AUX_SCORE,
+                                vocab.fragment(ADYN, e.name), c),
+                            [e.name]))
+            continue
         for (lbl, sc, up, c) in _proposed_op_genomes(e):
             out.append((f"policy_{lbl}", assemble_policy_from(vocab, sc, up, c),
                         [sc, up]))
@@ -1170,6 +1252,8 @@ def op_probe(vocab: Vocabulary, proposal: OpProposal) -> str:
         return _assemble_core(_SCORE_OPS["lru"], frag, 2)
     if proposal.kind == ASCORE:
         return _assemble_adaptive(frag, 2)
+    if proposal.kind == ADYN:
+        return _assemble_adaptive_full(DEFAULT_AUX_SCORE, frag, 2)
     return _assemble_core(_SCORE_OPS["lru"], _UPDATE_OPS["bump_both"], 2)
 
 
@@ -1310,29 +1394,34 @@ def holdout_suite(rng) -> list:
 
 
 # LLM op-proposer guidance (domain-specific, so the LLM proposes CACHE ops).
+# v11 B3 RUBRIC-SCRUBBED proposer prompt. Removed (documented in
+# docs/V11_NOTES.md): the worked score example, the entire worked ascore
+# threshold-switch example with its constants, the EWMA decay/start constants,
+# the quality-metric description and "robustness is what scores" steering, and
+# the rationale-shape hint "why it helps across regimes". Kept: mechanics of the
+# contract, the NAMES of the observables, and the JSON shape. Problems (the
+# concrete diagnosed failure) arrive separately via causal guidance.
 OP_PROPOSER_SYS = (
     "You are the BUILDER extending the primitive vocabulary of a CACHE EVICTION "
     "engine. A policy keeps a bounded cache; on a miss with a FULL cache it evicts "
     "the cached key with the MINIMUM score. Each cached key has integer state: la "
-    "(last access time), fr (frequency / access count), ins (insert time); t is the "
-    "current clock. Propose ONE new primitive OPERATION expected to improve the HIT "
-    "RATE on the listed failing trace. QUALITY is the competitive ratio vs Belady's "
-    "offline optimum, weighted across skew/reuse/drift/loop/scan regimes -- "
-    "ROBUSTNESS across regimes is what scores. Allowed kinds: 'score' = a Python "
-    "EXPRESSION over la, fr, ins, t giving the eviction priority (lower = evicted "
-    "first; LRU is `la`, LFU is `fr`, FIFO is `ins`, MRU is `-la`, and e.g. `la + 30 "
-    "* fr.bit_length()` keeps a hot key warm); 'update' = a Python LIST expression "
-    "[<new_la>, <new_fr>, <new_ins>] for a key's state on a HIT (default "
-    "[t, fr + 1, ins]); 'ascore' = an ADAPTIVE score EXPRESSION over la, fr, ins, t "
-    "AND aux, where aux[0] is a trusted EWMA of the per-access hit flag (decay 0.98, "
-    "starts 0.5) -- it collapses toward 0 when the cache is thrashing (a loop/scan "
-    "it cannot hold), so an ascore can SWITCH regimes mid-trace, e.g. `(-la) if "
-    "aux[0] < 0.08 else (la + 30 * fr.bit_length())` (MRU under thrash, else "
-    "recency+log-frequency). Use ONLY the listed names, numbers, arithmetic, "
-    "comparisons, conditional expressions, and int methods like .bit_length() -- no "
-    "imports, no I/O. Respond with ONLY a JSON object: "
-    '{"kind":"score"|"update"|"ascore","name":"<short_identifier>",'
-    '"fragment":"<expr>","rationale":"<why it helps across regimes>"}.')
+    "(last access time), fr (frequency / access count), ins (insert time); t is "
+    "the current clock. Propose ONE new primitive OPERATION that addresses the "
+    "concrete failing trace described to you. Allowed kinds: "
+    "'score' = a Python EXPRESSION over la, fr, ins, t giving the eviction "
+    "priority (lower = evicted first); "
+    "'update' = a Python LIST expression [<new_la>, <new_fr>, <new_ins>] for a "
+    "key's state on a HIT; "
+    "'ascore' = a score EXPRESSION over la, fr, ins, t AND aux (aux = a small "
+    "state vector maintained for you across the trace); "
+    "'adyn' = a LIST expression over (aux, hit, ghost_hit, t) defining how aux "
+    "itself updates on every access (hit and ghost_hit are 0/1 flags; ghost_hit "
+    "means this missed key was recently evicted). "
+    "Use ONLY the listed names, numbers, arithmetic, comparisons, conditional "
+    "expressions, and int methods like .bit_length() -- no imports, no I/O. "
+    "Respond with ONLY a JSON object: "
+    '{"kind":"score"|"update"|"ascore"|"adyn","name":"<short_identifier>",'
+    '"fragment":"<expr>","rationale":"<your reasoning>"}.')
 
 
 # --------------------------------------------------------------------------- #
@@ -1385,8 +1474,8 @@ DOMAIN = Domain(
     human_baseline_policies=human_baseline_policies,
     human_default_policy=human_default_policy,
     op_proposer_sys=OP_PROPOSER_SYS,                 # v7: domain-specific LLM op prompt
-    op_kinds=(SCORE, UPDATE, ASCORE),                # v9: + adaptive score kind
-    op_str_kinds=(SCORE, UPDATE, ASCORE),            # all fragments are expressions
+    op_kinds=(SCORE, UPDATE, ASCORE, ADYN),          # v11: + proposable dynamics
+    op_str_kinds=(SCORE, UPDATE, ASCORE, ADYN),      # all fragments are expressions
     benchmark_suite=BENCHMARK_SUITE,                 # v9: weighted utility benchmark
     adaptive_baselines=adaptive_baselines,           # v10+v11: adaptive human tier
     holdout_suite=holdout_suite,                     # v11 A4b

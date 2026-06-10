@@ -751,9 +751,21 @@ class Engine:
     # tracemalloc scale (cmul 2 -> ~3KB, cmul 4 -> ~6KB) so budgets carry over.
     _BYTES_PER_ENTRY = 160
 
+    @staticmethod
+    def _policy_uses_ghost(code: str) -> bool:
+        """v11 B1: the literal USE_GHOST knob (single-binding enforced by the
+        shape screen, so source == runtime)."""
+        m = re.search("USE_GHOST" + r"\s*(?::[^=\n]*)?=\s*(\d+)", code)
+        return bool(m and m.group(1) == "1")
+
     def _policy_cost(self, code: str) -> int:
         base_k = self.spec.workloads[0]["k"] if self.spec.workloads else 10
-        return self._policy_cap(code) * base_k * self._BYTES_PER_ENTRY
+        units = float(self._policy_cap(code))
+        if self._policy_uses_ghost(code):
+            # the SAME charging rule as the references (GHOST_FRAC_DEFAULT is the
+            # pinned mirror of the domain's GHOST_ENTRY_COST_FRAC): ghosts <= cap.
+            units *= (1.0 + GHOST_FRAC_DEFAULT)
+        return int(round(units * base_k * self._BYTES_PER_ENTRY))
 
     # v10 P2 backstop: a candidate whose MEASURED tracemalloc peak exceeds this
     # multiple of its DECLARED cost is rejected. The primary statelessness
@@ -2131,8 +2143,13 @@ def format_report(r: RunResult) -> str:
                          f"{ua.get('beats_human', 0)} beats, "
                          f"{ua.get('matches_human', 0)} matches, "
                          f"{ua.get('below_human', 0)} below")
+                mechs = v6.get("mechanisms") or {}
+                frag_map = v6.get("fragile") or {}
                 for nm, fl in (v6.get("op_utility_adaptive") or {}).items():
-                    L.append(f"      {nm}: {fl}")
+                    tag = " [fragile]" if frag_map.get(nm) else ""
+                    L.append(f"      {nm}: {fl}{tag}")
+                    if mechs.get(nm):
+                        L.append(f"          mech: {mechs[nm]}")
             L.append(f"  static tier (v6-compatible, vs the classic statics): "
                      f"{u.get('beats_human', 0)} beats_human, "
                      f"{u.get('matches_human', 0)} matches_human, "
