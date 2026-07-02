@@ -70,7 +70,12 @@ class Config:
     api_base: str = field(default_factory=lambda: os.environ.get(
         "RDE_API_BASE", "https://openrouter.ai/api/v1"))
     api_key_env: str = "OPENROUTER_API_KEY"
-    request_timeout_s: float = 120.0
+    # Env seam like RDE_API_BASE: a local CLI-backed endpoint (atlas shim) can
+    # legitimately take minutes per call -- 120s is right for OpenRouter but
+    # starves behind a serial local backend, and client-side retries then stack
+    # orphaned calls on the server (the 2026-07-01 campaign cascade).
+    request_timeout_s: float = field(default_factory=lambda: float(
+        os.environ.get("RDE_REQUEST_TIMEOUT_S", "120")))
     max_retries: int = 3
 
     # --- grounding harness ------------------------------------------------- #

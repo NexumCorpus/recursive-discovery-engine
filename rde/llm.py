@@ -13,6 +13,7 @@ Two responsibilities live here and nowhere else:
 
 from __future__ import annotations
 
+import http.client
 import json
 import time
 import urllib.error
@@ -94,7 +95,14 @@ class LLMClient:
                 if e.code != 429 and 400 <= e.code < 500:
                     raise LLMError(f"{model}: HTTP {e.code}: {detail}") from e
                 last_err = LLMError(f"HTTP {e.code}: {detail}")
-            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+            except (urllib.error.URLError, TimeoutError, OSError,
+                    http.client.HTTPException, json.JSONDecodeError) as e:
+                # OSError is load-bearing: urllib wraps request-phase socket
+                # errors in URLError but getresponse()-phase errors arrive RAW
+                # (a server dying mid-call raises ConnectionResetError straight
+                # through -- crashed the 2026-07-01 campaign at iteration 2).
+                # HTTPException too: a server dying mid-BODY raises
+                # IncompleteRead, which subclasses HTTPException, not OSError.
                 last_err = e
             # backoff: 1s, 2s, 4s, ...
             time.sleep(2 ** attempt)
