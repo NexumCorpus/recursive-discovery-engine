@@ -67,7 +67,8 @@ class Config:
     profile: str = "default"              # "default" | "cheap" (llm only)
 
     # --- LLM client -------------------------------------------------------- #
-    api_base: str = "https://openrouter.ai/api/v1"
+    api_base: str = field(default_factory=lambda: os.environ.get(
+        "RDE_API_BASE", "https://openrouter.ai/api/v1"))
     api_key_env: str = "OPENROUTER_API_KEY"
     request_timeout_s: float = 120.0
     max_retries: int = 3
