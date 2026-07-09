@@ -1,0 +1,27 @@
+{
+  "schema": "rde-campaign/v1",
+  "id": "codex-cache-scrubbed-v1",
+  "created_utc": "2026-07-09T22:45:00Z",
+  "domain": "cache_eviction",
+  "backend": "codex-cli",
+  "models": {
+    "builder": "gpt-5.6-terra",
+    "adversary": "gpt-5.5",
+    "synthesizer": "gpt-5.6-terra"
+  },
+  "minimum_independence": "intra-family-diverse",
+  "max_iterations": 1,
+  "builder_fanout": 1,
+  "claim_mode": "external_gate_required",
+  "hypothesis": "A constrained one-iteration Codex run may emit an admissible cache policy or a useful negative result under the existing scrubbed-prompt and trusted-grounding machinery.",
+  "evidence_requirements": [
+    "Preserve the complete RDE result, claims, iteration, and audit bundle.",
+    "Treat model output as untrusted until the grounding oracle and existing holdout machinery execute.",
+    "An external grader must inspect the bundle before any discovery claim; intra-family diversity is not independent corroboration."
+  ],
+  "kill_conditions": [
+    "No candidate is admitted or no candidate clears the existing holdout: record a negative result, not a near-discovery.",
+    "Any run whose configured domain, role roster, fanout, or iteration budget differs from this manifest is invalid for this campaign.",
+    "Any apparent improvement without an external review of the audit bundle remains exploratory."
+  ]
+}

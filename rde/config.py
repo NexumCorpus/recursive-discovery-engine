@@ -241,6 +241,9 @@ class Config:
 
     # populated from the active profile at construction
     models: dict = field(default_factory=dict)
+    # Loaded only from a validated frozen manifest by the CLI. It is persisted
+    # alongside results so an external grader can see what was fixed in advance.
+    campaign: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if not self.models:

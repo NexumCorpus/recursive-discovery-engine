@@ -64,6 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="max iterations (overrides config default of 8)")
     p.add_argument("--fanout", type=int, default=None,
                    help="approaches proposed per round (default 1)")
+    p.add_argument("--campaign", metavar="MANIFEST.json",
+                   help="run only if this frozen campaign manifest matches the active configuration")
     p.add_argument("--interactive", action="store_true",
                    help="pause for human override at each synthesis checkpoint")
     p.add_argument("--quiet", action="store_true",
@@ -89,6 +91,32 @@ def main(argv: list[str] | None = None) -> int:
         cfg.builder_fanout = args.fanout
 
     domain = DOMAINS[args.domain]
+    if args.campaign:
+        from .campaign import load_campaign, validate_campaign
+        try:
+            campaign = load_campaign(args.campaign)
+        except ValueError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
+        # A CLI override after preregistration is a different experiment, not a
+        # convenience flag. Refuse it rather than quietly changing the budget.
+        for arg_name, field_name, actual in (
+            ("iterations", "max_iterations", args.iterations),
+            ("fanout", "builder_fanout", args.fanout),
+        ):
+            if actual is not None and actual != int(campaign[field_name]):
+                print(f"error: --{arg_name}={actual} conflicts with frozen "
+                      f"campaign {field_name}={campaign[field_name]}", file=sys.stderr)
+                return 2
+        cfg.max_iterations = int(campaign["max_iterations"])
+        cfg.builder_fanout = int(campaign["builder_fanout"])
+        problems = validate_campaign(campaign, cfg, args.domain)
+        if problems:
+            print("error: campaign mismatch:\n  - " + "\n  - ".join(problems),
+                  file=sys.stderr)
+            return 2
+        cfg.campaign = campaign
+        print(f"campaign={campaign['id']} claim-mode={campaign['claim_mode']}")
     roles = make_roles(cfg)
 
     llm = None
