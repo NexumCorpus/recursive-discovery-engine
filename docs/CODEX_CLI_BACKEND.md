@@ -13,11 +13,13 @@ not a claim that Codex has produced a discovery.
   and holdout discipline remain unchanged.
 - `RDE_CODEX_BIN` selects the executable; `RDE_CODEX_MODEL` is optional;
   `RDE_CODEX_USE_USER_CONFIG=1` opts into local Codex plugin/MCP configuration.
-- The default uses one Codex model for all three roles. That preserves the
-  adversarial *prompt* roles but not the original cross-vendor blind-spot
-  defense. Configure `RDE_BUILDER_MODEL`, `RDE_ADVERSARY_MODEL`, and
-  `RDE_SYNTHESIZER_MODEL` to supported distinct Codex models when available;
-  otherwise treat runs as exploratory and seek an external grader/holdout.
+- The default assigns `gpt-5.6-terra` to Builder/Synthesizer and `gpt-5.5` to
+  the Adversary. That creates useful intra-family friction, but it is still not
+  the original cross-vendor blind-spot defense. RDE prints this distinction as
+  `intra-family-diverse`, never as independent corroboration. Configure
+  `RDE_BUILDER_MODEL`, `RDE_ADVERSARY_MODEL`, and `RDE_SYNTHESIZER_MODEL` to
+  the available role models; `RDE_CODEX_MODEL` is a deliberate global pin that
+  collapses the roster to a labelled monoculture.
 
 This backend is suitable for a fresh, pre-registered campaign only after the
 domain, baselines, metric, seeds, and holdout plan are frozen. A green RDE run is

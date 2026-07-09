@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .config import Config, load_dotenv
+from .config import Config, assess_model_assignment, load_dotenv
 from .domains import cache_eviction, heavy_hitters, topk
 from .engine import Engine, format_report
 from .roles import make_roles
@@ -100,9 +100,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: {e}", file=sys.stderr)
             return 2
         print(f"backend={cfg.backend}  models: {cfg.models}")
-        if cfg.backend == "codex-cli" and len(set(cfg.models.values())) < 2:
-            print("warning: codex-cli currently uses one model across RDE roles; "
-                  "this is exploratory transport validation, not cross-model corroboration")
+        if cfg.backend == "codex-cli":
+            assignment = assess_model_assignment(cfg.models)
+            print(f"model-independence={assignment['grade']} "
+                  f"vendors={','.join(assignment['vendors']) or 'unknown'}")
+            if not assignment["independent_corroboration"]:
+                print("warning: Codex roles lack cross-provider corroboration; "
+                      "this run is exploratory until an external grader and holdout agree")
 
     logger = (lambda m: None) if args.quiet else print
     engine = Engine(cfg, domain, roles, llm=llm, logger=logger,

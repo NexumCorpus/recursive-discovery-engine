@@ -59,6 +59,58 @@ MODELS_CHEAP = {
     "synthesizer": "anthropic/claude-haiku-4.5",
 }
 
+# Codex CLI is a single-provider transport, but it need not be a single-model
+# monoculture. These defaults were live-probed on the local Codex station. The
+# adversary intentionally uses a different model from the builder so a failed
+# proposal meets a separately-parameterized critic. This is weaker than the
+# OpenRouter profile's cross-vendor design and is labelled as such below.
+CODEX_MODELS = {
+    "builder": "gpt-5.6-terra",
+    "adversary": "gpt-5.5",
+    "synthesizer": "gpt-5.6-terra",
+}
+
+
+def model_vendor(model: str) -> str:
+    """Best-effort provider lineage for an explicitly recorded model id.
+
+    It is deliberately conservative: an unrecognised id remains ``unknown``
+    rather than being counted as independent corroboration.
+    """
+    value = str(model or "").strip().lower()
+    if "/" in value:
+        return value.split("/", 1)[0]
+    if value.startswith(("gpt-", "o1", "o3", "o4", "codex")):
+        return "openai"
+    if value.startswith(("gemini", "google/")):
+        return "google"
+    if value.startswith(("claude", "anthropic/")):
+        return "anthropic"
+    return "unknown"
+
+
+def assess_model_assignment(models: dict) -> dict:
+    """Describe role diversity without overstating its epistemic value."""
+    roles = ("builder", "adversary", "synthesizer")
+    assigned = {role: str(models.get(role, "")) for role in roles}
+    vendors = {model_vendor(value) for value in assigned.values() if value}
+    unique_models = {value for value in assigned.values() if value}
+    if len(vendors - {"unknown"}) >= 2:
+        grade = "cross-provider"
+    elif len(unique_models) >= 2:
+        grade = "intra-family-diverse"
+    else:
+        grade = "monoculture"
+    return {
+        "roles": assigned,
+        "vendors": sorted(vendors),
+        "unique_models": sorted(unique_models),
+        "grade": grade,
+        # A prompt-role adversary on one provider is useful pressure, but it is
+        # not independent model-family corroboration.
+        "independent_corroboration": grade == "cross-provider",
+    }
+
 
 @dataclass
 class Config:
@@ -193,11 +245,14 @@ class Config:
     def __post_init__(self):
         if not self.models:
             if self.backend == "codex-cli":
-                model = self.codex_model or "codex-cli"
+                # RDE_CODEX_MODEL is an intentional global pin for debugging or
+                # an account with a one-model entitlement. It trades away role
+                # diversity and the CLI reports that loss explicitly.
+                model = self.codex_model
                 self.models = {
-                    "builder": os.environ.get("RDE_BUILDER_MODEL", model),
-                    "adversary": os.environ.get("RDE_ADVERSARY_MODEL", model),
-                    "synthesizer": os.environ.get("RDE_SYNTHESIZER_MODEL", model),
+                    "builder": os.environ.get("RDE_BUILDER_MODEL", model or CODEX_MODELS["builder"]),
+                    "adversary": os.environ.get("RDE_ADVERSARY_MODEL", model or CODEX_MODELS["adversary"]),
+                    "synthesizer": os.environ.get("RDE_SYNTHESIZER_MODEL", model or CODEX_MODELS["synthesizer"]),
                 }
                 return
             base = MODELS_CHEAP if self.profile == "cheap" else MODELS_DEFAULT
