@@ -15,6 +15,9 @@ from __future__ import annotations
 
 import http.client
 import json
+import os
+from pathlib import Path
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -52,6 +55,9 @@ class LLMClient:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self.usage = Usage()
+        self.codex_bin = _resolve_codex_bin(cfg)
+        if cfg.backend == "codex-cli":
+            return
         if not cfg.api_key:
             raise LLMError(
                 f"No API key in ${cfg.api_key_env}. Put it in .env "
@@ -61,6 +67,8 @@ class LLMClient:
              temperature: float = 0.4, max_tokens: int = 4096) -> str:
         """Single-turn completion. Returns the assistant message text. Retries
         transient failures with exponential backoff; raises LLMError on give-up."""
+        if self.cfg.backend == "codex-cli":
+            return self._chat_codex_cli(model, system, user, temperature=temperature)
         body = json.dumps({
             "model": model,
             "messages": [
@@ -109,6 +117,65 @@ class LLMClient:
         raise LLMError(f"{model}: gave up after {self.cfg.max_retries} "
                        f"attempts: {last_err}")
 
+    def _chat_codex_cli(self, model: str, system: str, user: str, *,
+                         temperature: float) -> str:
+        """Run one isolated Codex CLI turn and read its JSONL result stream.
+
+        The RDE roles are intentionally single-turn and already place all needed
+        context in `system` + `user`, so `--ephemeral` prevents a role's prior
+        answer from becoming hidden context for its next proposal. Candidate code
+        is still treated as untrusted by the normal grounding path.
+        """
+        prompt = (
+            "You are one role in a Recursive Discovery Engine. Follow the system "
+            "contract and user request exactly. Return only the requested final "
+            "artifact; do not use tools, edit files, or claim empirical results.\n\n"
+            f"SYSTEM CONTRACT:\n{system}\n\nUSER REQUEST:\n{user}"
+        )
+        command = [self.codex_bin, "exec", "--ephemeral", "--json", "--color", "never"]
+        if not self.cfg.codex_use_user_config:
+            command.append("--ignore-user-config")
+        requested_model = model if model != "codex-cli" else self.cfg.codex_model
+        if requested_model:
+            command.extend(["--model", requested_model])
+        command.extend(["-C", str(Path(__file__).resolve().parent.parent),
+                        "-s", "read-only", prompt])
+        try:
+            proc = subprocess.run(
+                command, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=self.cfg.request_timeout_s,
+                env=os.environ.copy(),
+            )
+        except subprocess.TimeoutExpired as e:
+            raise LLMError(f"{model}: Codex CLI timed out after {self.cfg.request_timeout_s}s") from e
+        except OSError as e:
+            raise LLMError(f"{model}: could not start Codex CLI ({e})") from e
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "Codex CLI failed").strip()[-500:]
+            raise LLMError(f"{model}: Codex CLI exit {proc.returncode}: {detail}")
+
+        reply = ""
+        usage = {}
+        for line in proc.stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("type") == "item.completed":
+                item = event.get("item") or {}
+                if item.get("type") == "agent_message" and item.get("text"):
+                    reply = str(item["text"])
+            elif event.get("type") == "turn.completed":
+                usage = event.get("usage") or {}
+            elif event.get("type") in {"turn.failed", "error"}:
+                detail = event.get("error") or event.get("message") or "Codex turn failed"
+                raise LLMError(f"{model}: {detail}")
+        if not reply:
+            raise LLMError(f"{model}: Codex CLI emitted no agent message")
+        self.usage.add(model, int(usage.get("input_tokens", 0)),
+                       int(usage.get("output_tokens", 0)))
+        return reply
+
     def _parse_response(self, model: str, payload: dict) -> str:
         if "error" in payload:
             raise LLMError(f"{model}: {payload['error']}")
@@ -121,6 +188,21 @@ class LLMClient:
         self.usage.add(model, int(u.get("prompt_tokens", 0)),
                        int(u.get("completion_tokens", 0)))
         return text or ""
+
+
+def _resolve_codex_bin(cfg: Config) -> str:
+    if cfg.codex_bin:
+        return cfg.codex_bin
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        root = Path(local) / "OpenAI" / "Codex" / "bin"
+        try:
+            candidates = sorted(root.glob("*/codex.exe"), reverse=True)
+            if candidates:
+                return str(candidates[0])
+        except OSError:
+            pass
+    return "codex.exe" if os.name == "nt" else "codex"
 
 
 # --------------------------------------------------------------------------- #

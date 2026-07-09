@@ -53,10 +53,10 @@ def _interactive_checkpoint(state: dict, directive: Directive) -> Directive:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="rde", description="Recursive Discovery Engine (v0)")
-    p.add_argument("--backend", choices=["deterministic", "llm"],
+    p.add_argument("--backend", choices=["deterministic", "llm", "codex-cli"],
                    default="deterministic",
                    help="deterministic = reference policy, no API; "
-                        "llm = live models via OpenRouter")
+                        "llm = live models via OpenRouter; codex-cli = local Codex subscription")
     p.add_argument("--profile", choices=["default", "cheap"], default="cheap",
                    help="LLM model tier (llm backend only)")
     p.add_argument("--domain", choices=list(DOMAINS), default="topk")
@@ -92,14 +92,17 @@ def main(argv: list[str] | None = None) -> int:
     roles = make_roles(cfg)
 
     llm = None
-    if cfg.backend == "llm":
+    if cfg.backend in {"llm", "codex-cli"}:
         from .llm import LLMClient, LLMError
         try:
             llm = LLMClient(cfg)
         except LLMError as e:
             print(f"error: {e}", file=sys.stderr)
             return 2
-        print(f"backend=llm  models: {cfg.models}")
+        print(f"backend={cfg.backend}  models: {cfg.models}")
+        if cfg.backend == "codex-cli" and len(set(cfg.models.values())) < 2:
+            print("warning: codex-cli currently uses one model across RDE roles; "
+                  "this is exploratory transport validation, not cross-model corroboration")
 
     logger = (lambda m: None) if args.quiet else print
     engine = Engine(cfg, domain, roles, llm=llm, logger=logger,

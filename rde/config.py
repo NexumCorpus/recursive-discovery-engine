@@ -63,8 +63,8 @@ MODELS_CHEAP = {
 @dataclass
 class Config:
     # --- backends ---------------------------------------------------------- #
-    backend: str = "deterministic"        # "deterministic" | "llm"
-    profile: str = "default"              # "default" | "cheap" (llm only)
+    backend: str = "deterministic"        # "deterministic" | "llm" | "codex-cli"
+    profile: str = "default"              # "default" | "cheap" (remote llm only)
 
     # --- LLM client -------------------------------------------------------- #
     api_base: str = field(default_factory=lambda: os.environ.get(
@@ -77,6 +77,13 @@ class Config:
     request_timeout_s: float = field(default_factory=lambda: float(
         os.environ.get("RDE_REQUEST_TIMEOUT_S", "120")))
     max_retries: int = 3
+    # Codex Desktop/CLI transport. It is deliberately a separate backend from
+    # OpenRouter: no API key, no provider-model comparison, and no inherited
+    # user MCP/plugin configuration unless explicitly requested.
+    codex_bin: str = field(default_factory=lambda: os.environ.get("RDE_CODEX_BIN", ""))
+    codex_model: str = field(default_factory=lambda: os.environ.get("RDE_CODEX_MODEL", ""))
+    codex_use_user_config: bool = field(default_factory=lambda: os.environ.get(
+        "RDE_CODEX_USE_USER_CONFIG", "").lower() in {"1", "true", "yes", "on"})
 
     # --- grounding harness ------------------------------------------------- #
     subprocess_timeout_s: float = 20.0    # hard kill for a runaway candidate
@@ -185,6 +192,14 @@ class Config:
 
     def __post_init__(self):
         if not self.models:
+            if self.backend == "codex-cli":
+                model = self.codex_model or "codex-cli"
+                self.models = {
+                    "builder": os.environ.get("RDE_BUILDER_MODEL", model),
+                    "adversary": os.environ.get("RDE_ADVERSARY_MODEL", model),
+                    "synthesizer": os.environ.get("RDE_SYNTHESIZER_MODEL", model),
+                }
+                return
             base = MODELS_CHEAP if self.profile == "cheap" else MODELS_DEFAULT
             self.models = {
                 "builder": os.environ.get("RDE_BUILDER_MODEL", base["builder"]),

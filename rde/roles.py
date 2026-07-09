@@ -1150,6 +1150,6 @@ class Roles:
 
 
 def make_roles(cfg: Config) -> Roles:
-    if cfg.backend == "llm":
+    if cfg.backend in {"llm", "codex-cli"}:
         return Roles(LLMBuilder(), LLMAdversary(), LLMSynthesizer())
     return Roles(DetBuilder(), DetAdversary(), DetSynthesizer())
