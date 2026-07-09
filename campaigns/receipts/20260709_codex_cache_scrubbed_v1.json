@@ -1,0 +1,44 @@
+{
+  "schema": "rde-campaign-receipt/v1",
+  "campaign_id": "codex-cache-scrubbed-v1",
+  "campaign_manifest_sha256": "9f855f3324cb0c045c97969e3746bb625d9627b073d23bb30641edd9f88d28c4",
+  "run_id": "20260709_185202_cache_eviction_codex-cli",
+  "artifact_root": "runs/20260709_185202_cache_eviction_codex-cli",
+  "artifacts": {
+    "result.json": "1655cc78f40db1b996392ca4e040374a299309e220bf253d3f0183bdb93444cb",
+    "claims.json": "8503c8e044d78819947f044cc7cc1496133dad648391d4704e424d0ca8aefc9f",
+    "audit/bundle.json": "9c41e1816d95c97c3371731b2cd91873558981a2361eb4373a0bc4025dabb86c",
+    "iterations.jsonl": "0a47871a801d77feefcbb05b0c465e29989736687d68cd56cf85bbea6d9bc162"
+  },
+  "model_assignment": {
+    "builder": "gpt-5.6-terra",
+    "adversary": "gpt-5.5",
+    "synthesizer": "gpt-5.6-terra",
+    "grade": "intra-family-diverse",
+    "independent_corroboration": false
+  },
+  "execution": {
+    "iterations": 1,
+    "llm_calls": 4,
+    "prompt_tokens": 52886,
+    "completion_tokens": 1934,
+    "elapsed_s": 76.1
+  },
+  "outcome": {
+    "status": "negative_exploratory_result",
+    "candidate": "i1.0_llm",
+    "candidate_class": "blended",
+    "candidate_correct": true,
+    "candidate_metric_attack": [
+      "adv_loop",
+      "param_p25_n30",
+      "param_p45_n5",
+      "param_p45_n30"
+    ],
+    "adaptive_human_margin": -0.0691,
+    "robust_beats": [],
+    "discovery_claim": false,
+    "reason": "The candidate was grounded but exposed by adversarial traces, below the adaptive-human baseline, and lacks cross-provider corroboration or an external review."
+  },
+  "next_action": "Do not tune this candidate against the observed failures. A later campaign must be newly frozen, include an external grader, and preserve untouched holdout evaluation."
+}
