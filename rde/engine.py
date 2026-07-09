@@ -33,7 +33,7 @@ from typing import Callable, Optional
 from . import behavior
 from . import concepts
 from . import signals as sig
-from .config import Config
+from .config import Config, assess_model_assignment
 from .domain import Domain
 from .fingerprint import assess_novelty, fingerprint
 from .frontier import Frontier, FrontierPoint
@@ -1951,6 +1951,7 @@ class Engine:
         summary = {
             "domain": result.domain, "backend": result.backend,
             "profile": self.cfg.profile, "models": self.cfg.models,
+            "model_assignment": assess_model_assignment(self.cfg.models),
             "status": result.status, "elapsed_s": round(time.time() - t0, 1),
             "iterations_run": len(result.iterations),
             "improvement": result.improvement,
@@ -1977,6 +1978,7 @@ class Engine:
             "run_id": run_dir.name,
             "domain": result.domain, "backend": result.backend,
             "status": result.status,
+            "model_assignment": assess_model_assignment(self.cfg.models),
             "utility_adaptive": v6.get("utility_adaptive"),
             "utility_static": v6.get("utility"),
             "op_utility_adaptive": v6.get("op_utility_adaptive"),
@@ -2021,6 +2023,8 @@ class Engine:
         prov = result.vocab_provenance or {}
         bundle = {
             "run_id": run_dir.name,
+            "backend": result.backend,
+            "model_assignment": assess_model_assignment(self.cfg.models),
             "benchmark_version": v6.get("benchmark_version"),
             "template_hash": claims.get("template_hash"),
             "fragments_admitted": prov.get("proposed_op_fragments", {}),

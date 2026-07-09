@@ -1,6 +1,12 @@
 """The model roster is evidence, not decoration: role diversity must be legible."""
 
+import json
+from pathlib import Path
+
 from rde.config import Config, assess_model_assignment, model_vendor
+from rde.domains import topk
+from rde.engine import Engine
+from rde.roles import make_roles
 
 
 def test_codex_defaults_separate_builder_from_adversary(monkeypatch):
@@ -35,3 +41,11 @@ def test_cross_provider_roster_is_the_only_independent_grade():
     assert assessment["grade"] == "cross-provider"
     assert assessment["independent_corroboration"]
     assert model_vendor("unfamiliar-model") == "unknown"
+
+
+def test_run_artifacts_carry_model_assignment_provenance():
+    cfg = Config(backend="deterministic", max_iterations=0)
+    result = Engine(cfg, topk.DOMAIN, make_roles(cfg)).run()
+    artifact = json.loads((Path(result.run_dir) / "audit" / "bundle.json").read_text())
+
+    assert artifact["model_assignment"] == assess_model_assignment(cfg.models)
