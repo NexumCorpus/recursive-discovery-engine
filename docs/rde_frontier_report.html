@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Recursive Discovery Engine — A Field Report</title>
+<style>
+  :root{
+    --ink:#1a1d24;
+    --muted:#54607a;
+    --faint:#8a93a8;
+    --accent:#3b4cca;        /* deep indigo */
+    --accent2:#7a3bca;       /* violet */
+    --rule:#d8dce6;
+    --panel:#f4f6fb;
+    --panel-edge:#dde2ee;
+    --good:#1f7a4d;
+    --warn:#9a5b00;
+    --bad:#a3232b;
+    --code-bg:#f6f7fb;
+  }
+  @page{ size: Letter; margin: 19mm 17mm 18mm 17mm; }
+  *{ box-sizing:border-box; }
+  html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body{
+    font-family:"Cambria","Georgia",serif;
+    color:var(--ink);
+    font-size:10.6pt;
+    line-height:1.52;
+    margin:0;
+  }
+  h1,h2,h3,h4,.kicker,.tag,th,.cover-title,.toc,.facts,.callout-h,.figcap{
+    font-family:"Segoe UI","Calibri","Helvetica Neue",Arial,sans-serif;
+  }
+  p{ margin:0 0 .62em 0; }
+  .lead{ font-size:11.4pt; color:var(--ink); }
+  a{ color:var(--accent); text-decoration:none; }
+  code,kbd,.mono{ font-family:"Consolas","Cascadia Mono",monospace; font-size:9.2pt; }
+  code{ background:var(--code-bg); padding:.04em .32em; border-radius:3px; border:1px solid #e7eaf3; }
+
+  /* ---------- COVER ---------- */
+  .cover{ height:9.0in; display:flex; flex-direction:column; justify-content:space-between;
+          page-break-after:always; }
+  .cover-top .kicker{ letter-spacing:.18em; text-transform:uppercase; font-size:9pt;
+          color:var(--accent); font-weight:700; }
+  .cover-rule{ height:4px; width:100%;
+          background:linear-gradient(90deg,var(--accent),var(--accent2)); margin:.5in 0 .42in; border-radius:3px;}
+  .cover-title{ font-size:35pt; line-height:1.04; font-weight:800; letter-spacing:-.5px; margin:0; }
+  .cover-sub{ font-size:14.5pt; color:var(--muted); margin:.34in 0 0; font-family:"Cambria","Georgia",serif; font-style:italic; }
+  .cover-thesis{ font-size:11.4pt; color:var(--ink); margin:.5in 0 0; max-width:6.0in; }
+  .cover-meta{ color:var(--faint); font-size:9.4pt; border-top:1px solid var(--rule); padding-top:.18in; }
+  .cover-meta b{ color:var(--muted); font-weight:600; }
+
+  /* ---------- STRUCTURE ---------- */
+  section{ page-break-before:always; }
+  h2{ font-size:18pt; font-weight:800; letter-spacing:-.3px; margin:.1in 0 .12in;
+      color:var(--ink); padding-bottom:.07in; border-bottom:2px solid var(--accent); }
+  h2 .num{ color:var(--accent); font-weight:800; margin-right:.14em; }
+  h3{ font-size:12.6pt; font-weight:700; color:var(--ink); margin:.26in 0 .06in; }
+  h4{ font-size:10.6pt; font-weight:700; color:var(--accent); margin:.18in 0 .03in;
+      text-transform:uppercase; letter-spacing:.06em; }
+  .kicker{ letter-spacing:.16em; text-transform:uppercase; font-size:8.6pt; color:var(--accent); font-weight:700; }
+
+  /* ---------- TOC ---------- */
+  .toc{ font-size:10.4pt; }
+  .toc ol{ list-style:none; padding:0; margin:.1in 0 0; counter-reset:toc; }
+  .toc li{ counter-increment:toc; padding:.10in 0; border-bottom:1px solid var(--rule);
+           display:flex; align-items:baseline; }
+  .toc li::before{ content:counter(toc,decimal-leading-zero); color:var(--accent); font-weight:700;
+           width:.5in; flex:0 0 .5in; }
+  .toc .t{ font-weight:600; }
+  .toc .d{ color:var(--muted); font-size:9.4pt; margin-left:.5in; }
+  .toc .row-main{ display:flex; flex-direction:column; }
+
+  /* ---------- CALLOUTS ---------- */
+  .callout{ background:var(--panel); border:1px solid var(--panel-edge); border-left:4px solid var(--accent);
+            border-radius:5px; padding:.16in .2in; margin:.18in 0; page-break-inside:avoid; }
+  .callout.violet{ border-left-color:var(--accent2); }
+  .callout.good{ border-left-color:var(--good); }
+  .callout.warn{ border-left-color:var(--warn); }
+  .callout-h{ font-weight:700; font-size:9.2pt; text-transform:uppercase; letter-spacing:.07em;
+            color:var(--accent); margin:0 0 .05in; }
+  .callout.violet .callout-h{ color:var(--accent2); }
+  .callout.good .callout-h{ color:var(--good); }
+  .callout.warn .callout-h{ color:var(--warn); }
+  .callout p:last-child{ margin-bottom:0; }
+
+  .pull{ font-family:"Segoe UI",sans-serif; font-size:13.5pt; line-height:1.34; font-weight:600;
+         color:var(--accent); border-left:0; margin:.22in 0; padding:0 .1in; }
+
+  /* ---------- TABLES ---------- */
+  table{ border-collapse:collapse; width:100%; margin:.16in 0; font-size:9.1pt; page-break-inside:avoid; }
+  caption{ caption-side:top; text-align:left; font-family:"Segoe UI",sans-serif; font-size:8.8pt;
+           color:var(--muted); margin-bottom:.06in; }
+  th{ text-align:left; background:#eef1f8; color:var(--ink); font-size:8.5pt; font-weight:700;
+      padding:.07in .09in; border-bottom:2px solid var(--accent); text-transform:uppercase; letter-spacing:.03em; }
+  td{ padding:.06in .09in; border-bottom:1px solid var(--rule); vertical-align:top; }
+  tr:nth-child(even) td{ background:#fafbfe; }
+  .mono-cell{ font-family:"Consolas",monospace; font-size:8.4pt; }
+  .b-good{ color:var(--good); font-weight:700; }
+  .b-bad{ color:var(--bad); font-weight:700; }
+  .b-warn{ color:var(--warn); font-weight:700; }
+
+  /* ---------- FACTS PANEL ---------- */
+  .facts{ display:grid; grid-template-columns:1fr 1fr; gap:.04in .3in; background:var(--panel);
+          border:1px solid var(--panel-edge); border-radius:6px; padding:.18in .22in; margin:.16in 0;
+          font-size:9.3pt; page-break-inside:avoid; }
+  .facts .f{ display:flex; justify-content:space-between; padding:.055in 0; border-bottom:1px dotted var(--rule); }
+  .facts .f b{ color:var(--muted); font-weight:600; }
+  .facts .f span{ font-family:"Consolas",monospace; font-size:8.6pt; color:var(--ink); text-align:right; }
+
+  /* ---------- FIGURES ---------- */
+  figure{ margin:.2in 0; page-break-inside:avoid; text-align:center; }
+  .figcap{ font-size:8.7pt; color:var(--muted); margin-top:.08in; text-align:center; }
+  svg{ max-width:100%; height:auto; }
+
+  ul,ol{ margin:.2em 0 .7em; padding-left:1.15em; }
+  li{ margin:.16em 0; }
+  .tight li{ margin:.05em 0; }
+  hr.soft{ border:0; border-top:1px solid var(--rule); margin:.24in 0; }
+  .small{ font-size:9pt; color:var(--muted); }
+  .end-note{ font-size:8.8pt; color:var(--faint); border-top:1px solid var(--rule); margin-top:.3in; padding-top:.12in; }
+  .drop::first-letter{ font-size:2.4em; font-weight:800; color:var(--accent); float:left;
+        line-height:.84; padding:.04em .08em 0 0; font-family:"Segoe UI",sans-serif; }
+</style>
+</head>
+<body>
+
+<!-- ================= COVER ================= -->
+<div class="cover">
+  <div class="cover-top">
+    <div class="kicker">A field report from a working system &nbsp;·&nbsp; algorithmic discovery &nbsp;·&nbsp; honest evaluation</div>
+    <div class="cover-rule"></div>
+    <h1 class="cover-title">The Recursive<br>Discovery Engine</h1>
+    <div class="cover-sub">Building a machine that cannot fool itself — and what it revealed<br>about discovery, verification, and the limits of AI capability.</div>
+    <p class="cover-thesis">A small, runnable system pits three AI roles against one another — a Builder that
+    proposes, an Adversary that disproves with executable evidence, and a Synthesizer that alone may
+    declare victory — over twelve generations of escalating rigor. Its most important result is not an
+    algorithm it discovered. It is what happened <em>every time the measurement was made more honest</em>:
+    the prior discoveries evaporated. This is a report on that process, written for readers tracking the
+    frontier of AI, where the hard problem is no longer generating a clever candidate but
+    <em>trusting your own measurement of whether the candidate is real.</em></p>
+  </div>
+  <div class="cover-meta">
+    <p><b>Subject:</b> the Recursive Discovery Engine (RDE), v0 → v11 &nbsp;·&nbsp;
+       <b>Codebase:</b> Python, standard-library core, OpenRouter LLM transport &nbsp;·&nbsp;
+       <b>Scope:</b> top-K selection, streaming heavy-hitters, cache eviction</p>
+    <p><b>Audience:</b> people interested in the frontier of AI &nbsp;·&nbsp;
+       <b>Stance:</b> the same scrupulous honesty the system enforces on itself</p>
+  </div>
+</div>
+
+<!-- ================= TOC / ABSTRACT ================= -->
+<section style="page-break-before:avoid;">
+  <h2><span class="num">00</span>Abstract &amp; contents</h2>
+
+  <p class="lead drop">The Recursive Discovery Engine is an answer, in miniature, to a question that sits
+  at the center of advanced AI: <strong>when a system claims it discovered something, how do you know it
+  actually did — rather than found a way to look like it did?</strong> RDE&rsquo;s answer is architectural.
+  It makes the score <em>verifiable by construction</em> (the thing being graded literally cannot write to
+  its own grade), it applies adversarial pressure from a <em>different</em> model than the one proposing,
+  it hands the only judge that may terminate a set of facts it is forbidden to rationalize away, and it
+  adopts one cultural rule above all: <em>a result that lowers the headline is a success.</em></p>
+
+  <p>Over a dozen versions, that discipline was turned on the project&rsquo;s own claims. Version&nbsp;7
+  reported three machine-discovered cache policies that &ldquo;beat the human baseline.&rdquo; Version&nbsp;8
+  made the metric unfakeable and the honest count fell to one. Version&nbsp;9 added adaptive primitives and
+  earned the project&rsquo;s first genuinely <em>invented</em> wins. Version&nbsp;10 raised the bar to the
+  humans&rsquo; own adaptive algorithms (ARC, LeCaR) and, surprisingly, the wins held. Version&nbsp;11
+  broadened that bar to the strongest known policies, added multi-seed measurement, swept the cost
+  accounting, and drew a fresh hold-out family of workloads — and the streak <strong>comprehensively
+  ended</strong>. Zero of ten prior winners survived; the two that still looked good on the home benchmark
+  lost decisively on freshly-drawn cousins of the same problems and were flagged as overfit. That null
+  result, reported plainly, is the most trustworthy thing the project has produced — and the clearest
+  lesson it offers the field.</p>
+
+  <div class="toc">
+    <ol>
+      <li><div class="row-main"><span class="t">Why this belongs at the frontier</span><span class="d">The evaluation crisis, reward hacking, and the difference between discovery and interpolation.</span></div></li>
+      <li><div class="row-main"><span class="t">The machine</span><span class="d">Three roles, the core loop, the Empirical Grounding Rule, and the anti-rationalization design.</span></div></li>
+      <li><div class="row-main"><span class="t">The problem it works on</span><span class="d">From top-K to heavy-hitters to cache eviction; why each move; the competitive-ratio metric.</span></div></li>
+      <li><div class="row-main"><span class="t">The central invention: a number the generator cannot write</span><span class="d">The trusted driver, the cheat test, and verification-by-construction.</span></div></li>
+      <li><div class="row-main"><span class="t">The ladder of honesty</span><span class="d">The version-by-version arc in which each gain in rigor destroyed a prior headline.</span></div></li>
+      <li><div class="row-main"><span class="t">v11: the design constitution and the end of the streak</span><span class="d">Unfakeable / alignable / insulatable; the leak rule; the rubric scrub; the hold-out finding.</span></div></li>
+      <li><div class="row-main"><span class="t">What this teaches about the frontier</span><span class="d">Seven transferable lessons for anyone evaluating capable models.</span></div></li>
+      <li><div class="row-main"><span class="t">Limits, open questions, and what comes next</span><span class="d">The pending &ldquo;capability without idiom&rdquo; run, generalization, and honest caveats.</span></div></li>
+    </ol>
+  </div>
+
+  <div class="facts">
+    <div class="f"><b>Roles</b><span>Builder · Adversary · Synthesizer</span></div>
+    <div class="f"><b>One vendor per role</b><span>shared-blind-spot defense</span></div>
+    <div class="f"><b>Core dependencies</b><span>Python stdlib only</span></div>
+    <div class="f"><b>Test suite</b><span>169 tests</span></div>
+    <div class="f"><b>Default models</b><span>gpt-5.1-codex · gemini-3.1-pro · opus-4.8</span></div>
+    <div class="f"><b>Quality metric</b><span>hit_rate / Belady-OPT</span></div>
+    <div class="f"><b>v11 robust wins</b><span>0 of 10 · 0 of 14</span></div>
+    <div class="f"><b>Governing rule</b><span>lowering the headline = success</span></div>
+  </div>
+</section>
+
+<!-- ================= 1. FRONTIER ================= -->
+<section>
+  <h2><span class="num">01</span>Why this belongs at the frontier of AI</h2>
+
+  <p class="lead">For most of the field&rsquo;s history the binding constraint was generation: could a model
+  produce a candidate solution worth looking at? That constraint is dissolving. Capable models now propose
+  fluent, plausible, often-correct artifacts faster than anyone can check them. The constraint has moved.
+  The frontier question today is <strong>verification</strong>: can we measure whether a capable system
+  actually did the thing — reliably, repeatably, and in a way the system itself cannot quietly subvert?</p>
+
+  <p>This is not an academic worry. It is the same problem under three names that the field cares about
+  most:</p>
+
+  <ul>
+    <li><strong>Reward hacking.</strong> A system optimized against a proxy will exploit the gap between the
+    proxy and the goal. The more capable the optimizer, the more reliably it finds that gap. An evaluation
+    you trusted at one capability level can quietly become a target at the next.</li>
+    <li><strong>The evaluation crisis.</strong> Benchmarks saturate, leak, and get gamed. A number that
+    once meant &ldquo;good&rdquo; comes to mean &ldquo;good at the benchmark.&rdquo; Distinguishing real
+    capability from benchmark-fit is now a first-order scientific problem, not a footnote.</li>
+    <li><strong>Discovery vs. interpolation.</strong> When a model produces something that scores well, did
+    it <em>invent</em> a mechanism or <em>recombine</em> one it was shown? The distinction is the whole
+    ballgame for AI-for-science, and it is notoriously slippery to define, let alone measure.</li>
+  </ul>
+
+  <p>The Recursive Discovery Engine is a working laboratory for exactly these questions, shrunk to a size
+  where every claim can be checked by hand. Its domains — selecting the top-K elements of an array,
+  tracking frequent items in a stream, choosing what to evict from a cache — are deliberately humble. They
+  have <em>known optima</em> or strong, well-studied human baselines, which means the question &ldquo;did
+  the machine actually beat the best human approach?&rdquo; has a real, computable answer rather than a
+  vibe. That is what makes RDE valuable as a frontier artifact: it is small enough to be honest about, and
+  structured exactly like the large problem.</p>
+
+  <div class="callout">
+    <div class="callout-h">The thesis in one line</div>
+    <p>The interesting output of RDE is not a discovered algorithm. It is a demonstration that a discovery
+    system can be built so that <em>its own success metric resists being gamed by the intelligence
+    operating inside it</em> — and a candid record of what such a system finds when you stop letting it
+    flatter itself.</p>
+  </div>
+
+  <p>Read that way, the rest of this report is a case study in a single discipline: how to wire an
+  AI system so that capability is pointed at the problem and cannot leak into the scorekeeping — and what
+  is left standing, as a genuine result, once it cannot.</p>
+</section>
+
+<!-- ================= 2. THE MACHINE ================= -->
+<section>
+  <h2><span class="num">02</span>The machine</h2>
+
+  <p>RDE runs a loop. A <strong>Builder</strong> proposes approaches. Each proposal is executed and graded
+  by a trusted harness. An <strong>Adversary</strong> then tries to <em>break</em> the survivors with
+  hostile inputs — and is believed only when it produces an input that actually breaks them. A
+  <strong>Synthesizer</strong> maintains the high-level view and is the <em>only</em> role permitted to
+  declare convergence or stop. The loop repeats until the Synthesizer accepts a winner or the budget runs
+  out.</p>
+
+  <figure>
+    <svg viewBox="0 0 760 232" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="The core discovery loop">
+      <defs>
+        <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#3b4cca"/>
+        </marker>
+        <style>
+          .bx{ fill:#f4f6fb; stroke:#3b4cca; stroke-width:1.4; rx:8; }
+          .bx2{ fill:#ffffff; stroke:#b9c0d6; stroke-width:1.2; rx:8; }
+          .lbl{ font-family:"Segoe UI",sans-serif; font-size:11px; fill:#1a1d24; font-weight:700; }
+          .sub{ font-family:"Segoe UI",sans-serif; font-size:8.4px; fill:#54607a; }
+          .ln{ stroke:#3b4cca; stroke-width:1.4; fill:none; }
+        </style>
+      </defs>
+
+      <rect class="bx" x="8"   y="40" width="96" height="50"/>
+      <text class="lbl" x="56" y="60" text-anchor="middle">Builder</text>
+      <text class="sub" x="56" y="74" text-anchor="middle">propose</text>
+
+      <rect class="bx2" x="128" y="34" width="118" height="62"/>
+      <text class="lbl" x="187" y="54" text-anchor="middle">Ground</text>
+      <text class="sub" x="187" y="68" text-anchor="middle">isolated subprocess</text>
+      <text class="sub" x="187" y="80" text-anchor="middle">+ oracle + benchmark</text>
+
+      <rect class="bx2" x="270" y="34" width="120" height="62"/>
+      <text class="lbl" x="330" y="54" text-anchor="middle">Adversary</text>
+      <text class="sub" x="330" y="68" text-anchor="middle">attack survivors;</text>
+      <text class="sub" x="330" y="80" text-anchor="middle">breaks harden the suite</text>
+
+      <rect class="bx2" x="414" y="34" width="118" height="62"/>
+      <text class="lbl" x="473" y="54" text-anchor="middle">Signals</text>
+      <text class="sub" x="473" y="68" text-anchor="middle">computed, not asked:</text>
+      <text class="sub" x="473" y="80" text-anchor="middle">stall · drift · patching</text>
+
+      <rect class="bx" x="556" y="34" width="130" height="62"/>
+      <text class="lbl" x="621" y="54" text-anchor="middle">Synthesizer</text>
+      <text class="sub" x="621" y="68" text-anchor="middle">decide · the only role</text>
+      <text class="sub" x="621" y="80" text-anchor="middle">that may terminate</text>
+
+      <!-- arrows -->
+      <path class="ln" d="M104,65 L126,65" marker-end="url(#arr)"/>
+      <path class="ln" d="M246,65 L268,65" marker-end="url(#arr)"/>
+      <path class="ln" d="M390,65 L412,65" marker-end="url(#arr)"/>
+      <path class="ln" d="M532,65 L554,65" marker-end="url(#arr)"/>
+
+      <!-- feedback loop -->
+      <path class="ln" d="M621,96 L621,150 L56,150 L56,92" marker-end="url(#arr)"/>
+      <text class="sub" x="338" y="166" text-anchor="middle">continue · synthesize · explore · reset · (accept / terminate)</text>
+
+      <text class="sub" x="338" y="206" text-anchor="middle" style="font-style:italic; fill:#3b4cca;">Ordering is load-bearing: evaluate &#8594; adversary &#8594; commit — a confirmed counterexample can downgrade a candidate <tspan font-style="normal">before</tspan> it is crowned &ldquo;best.&rdquo;</text>
+    </svg>
+    <figcaption class="figcap">Figure 1 — The core loop in <code>engine.py</code>. The same loop drives both the
+    zero-cost deterministic reference roles and the live LLM roles; only the trio plugged in differs.</figcaption>
+  </figure>
+
+  <h3>Three roles, three different model vendors</h3>
+  <p>Each role has two implementations: a <em>deterministic</em> reference (zero API cost, what the test
+  suite exercises, and the fallback when a model fails) and an <em>LLM</em> flavor. The most important
+  design choice in the LLM configuration is that the three roles are assigned to three <strong>different
+  model families</strong>.</p>
+
+  <div class="callout violet">
+    <div class="callout-h">The shared-blind-spot defense</div>
+    <p>If the Builder, Adversary, and Synthesizer all ran the same base model, they would share systematic
+    errors — and the Adversary could not catch what the Builder cannot see. Assigning a distinct vendor to
+    each role is the cheapest structural defense against correlated failure. In a live run, the
+    <code>claude-haiku</code> Synthesizer correctly tagged the <code>gpt-5-mini</code> Builder&rsquo;s
+    full-sort proposal as &ldquo;recombination of known techniques&rdquo; — outside-perspective friction a
+    single model cannot give itself.</p>
+  </div>
+
+  <h3>The Empirical Grounding Rule</h3>
+  <p>Nothing advances on an assertion. Every candidate is run in an isolated subprocess with a hard
+  timeout, checked against a brute-force <strong>oracle</strong>, benchmarked, and memory-profiled.
+  Correctness is a <em>hard gate</em>: a wrong approach is disqualified, never merely down-weighted. The
+  rule that gives the whole system its spine is simple and absolute:</p>
+
+  <p class="pull">No field of the evidence record is ever set by a model&rsquo;s claim. Every number is
+  produced by trusted code that ran the candidate.</p>
+
+  <p>The Adversary obeys the same rule. It does not get to <em>say</em> a candidate is fragile; it proposes
+  an input, the harness runs that input against the oracle, and the harness decides what broke. A confirmed
+  counterexample does two things at once: it downgrades the candidate <em>and</em> is folded permanently
+  into the trusted evaluation suite. The system&rsquo;s eyes grow over the course of a run.</p>
+
+  <h3>The anti-rationalization design — the key idea</h3>
+  <p>This is the part most worth carrying to larger systems. <strong>The Synthesizer does not get to decide
+  whether the process is drifting.</strong> A separate module computes objective signals from history —
+  has fitness stalled over a window? are the last several proposals cosmetic rewrites of one idea? is a
+  failure class recurring? — and hands those facts to the Synthesizer as inputs it cannot override. The
+  Synthesizer&rsquo;s decision is then checked against hard guardrails: it <em>cannot</em> accept with no
+  correct approach in hand, and it <em>cannot</em> continue through confirmed local patching.</p>
+
+  <div class="callout">
+    <div class="callout-h">Why this matters beyond RDE</div>
+    <p>The failure mode it prevents is the one every operator of capable models has seen: the model
+    cheerfully reports &ldquo;great progress!&rdquo; while emitting the third near-identical variant of a
+    stalled idea. You do not fix that by asking the model to be more honest. You fix it by
+    <em>computing</em> the thing you would otherwise have asked about, and making the model&rsquo;s freedom
+    conditional on the computed facts. Judgment the model could rationalize is moved out of the model.</p>
+  </div>
+
+  <h3>Bounded memory and a security perimeter</h3>
+  <p>Two supporting details matter for credibility. First, the archive handed to the LLM roles is capped to
+  the Pareto frontier plus a little context, so a fifty-iteration run prompts with as much state as a
+  five-iteration run — the system cannot &ldquo;win&rdquo; by drowning its judges in history. Second,
+  because the harness executes model-written code, it defends in layers: a separate stripped Python process
+  per candidate, an AST static screen that allow-lists imports and forbids code-execution and
+  introspection builtins (the <code>eval</code>, <code>exec</code>, <code>compile</code>,
+  <code>getattr</code>, <code>open</code> family) and rejects dunder access outright, a regex denylist, and
+  an RSS watchdog. The report is candid that this is adequate for a trusted local research setting, not a
+  hardened sandbox — an honesty about its own boundaries that recurs everywhere in the project.</p>
+</section>
+
+<!-- ================= 3. THE PROBLEM ================= -->
+<section>
+  <h2><span class="num">03</span>The problem it works on</h2>
+
+  <p>RDE changed domains twice, and each move was forced by an honest limitation of the one before. The
+  progression is itself instructive: it is the story of choosing a measuring instrument honest enough to
+  register the thing you are trying to detect.</p>
+
+  <h3>Top-K (v0–v1): a closed problem</h3>
+  <p>The first domain was selecting the K largest elements of an array. It worked — the engine explored
+  several strategies, disqualified a broken one by execution, fell into the empirical trap of preferring
+  quickselect on paper before measurement showed the heap won, and synthesized an adaptive hybrid that
+  dispatches on K and beats every single strategy. But top-K has a <em>known optimum</em> and a pass/fail
+  oracle. Recombination was sufficient; the synthesis win was noise-sized. A closed problem cannot show you
+  the difference between search and discovery.</p>
+
+  <h3>Heavy-hitters (v2–v6): open, but saturating</h3>
+  <p>So the domain opened: track the most frequent items in a stream under a memory budget, scored by
+  recall against an exact counter, with peak memory as the binding resource. Now quality was continuous and
+  a Pareto frontier of (recall &times; memory) gave the engine something real to advance. This is where the
+  project earned its first genuine machine-proposed primitive that <em>beat</em> the best human op — a
+  threshold-prune rule called <code>declow</code>, confirmed real by brute-forcing all 480 human
+  op-combinations. But the win, honestly assessed, lived only on the memory axis; on recall the domain was
+  human-saturated. You cannot demonstrate that a machine out-designs humans on a problem humans already
+  solve optimally.</p>
+
+  <h3>Cache eviction (v7–v11): real headroom, a true oracle, no dominant human</h3>
+  <p>The final domain is cache replacement: given a trace of accesses and a fixed capacity, decide what to
+  evict. It has three properties that make it the right instrument. There is a true optimum —
+  <strong>B&eacute;l&aacute;dy&rsquo;s algorithm</strong>, the clairvoyant policy that evicts whatever is
+  used furthest in the future, verified optimal by brute force on thousands of traces. There is genuine
+  headroom: real human policies sit well below the optimum on adversarial traces. And crucially,
+  <em>no single human policy dominates</em> — LRU wins on reuse, LFU on skew, MRU on loops. A win here is
+  unambiguous rather than a technicality.</p>
+
+  <div class="callout">
+    <div class="callout-h">Competitive ratio: making regimes comparable</div>
+    <p>From v9 on, quality is not raw hit-rate but the <strong>competitive ratio</strong>,
+    <code>hit_rate / Belady-OPT</code> per trace — &ldquo;how close to optimal <em>here</em>.&rdquo; Raw
+    hit-rates are dominated by easy regimes; the ratio puts a loop and a skew workload on the same scale, so
+    a cross-regime average actually means something. The headline grade is the weighted competitive-ratio
+    mean over a declared seven-regime benchmark (skew, recency, drift, mixed, plus an adversarial tail of
+    loop, scan, and antagonistic traces). Robustness across regimes is what scores — not a spike on one.</p>
+  </div>
+
+  <p>The cost axis is the exact declared capacity (a clean integer), not a noisy memory measurement — a
+  detail that turns out to matter enormously, because it is precisely what later exposed an inflated
+  headline. With a true oracle, a continuous and regime-fair quality metric, and an exact cost axis, the
+  instrument was finally honest enough to register what the machine was — and was not — doing.</p>
+</section>
+
+<!-- ================= 4. THE TRUSTED DRIVER ================= -->
+<section>
+  <h2><span class="num">04</span>The central invention: a number the generator cannot write</h2>
+
+  <p>If this report has one engineering idea to carry away, it is this one. It is the hinge between
+  versions&nbsp;7 and&nbsp;8, and it is the concrete, transferable answer to &ldquo;how do you keep a
+  capable generator from grading its own work.&rdquo;</p>
+
+  <h3>The hole in v7</h3>
+  <p>In v7 a candidate policy returned its own score: it computed a hit-rate and reported it, and the
+  verdict trusted that number (rejecting only the physically impossible — a rate above the optimum). The
+  problem is subtle and general. A free-form candidate <em>sees the whole problem</em>. Nothing stopped it
+  from computing B&eacute;l&aacute;dy&rsquo;s optimum itself and simply <em>reporting the optimum</em> as
+  though it had achieved it. The metric had a channel from the candidate&rsquo;s intelligence straight into
+  the scoreboard. That channel is the essence of reward hacking.</p>
+
+  <h3>The fix: separate the logic from the number</h3>
+  <p>Version&nbsp;8 closed it by construction. A cache candidate no longer returns a score. It provides only
+  <em>eviction logic</em> — a function that ranks a key for eviction, plus a memory knob. A
+  <strong>domain-owned trusted driver</strong> — code the engine controls, not the candidate — runs the
+  actual cache simulation, owns the hit counter, and computes the number. The candidate&rsquo;s
+  intelligence is pointed entirely at <em>how to evict well</em>; it has no path to the scoreboard at all.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Trusted driver separation">
+      <defs>
+        <marker id="arr2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#3b4cca"/></marker>
+        <marker id="arrX" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#a3232b"/></marker>
+        <style>
+          .reg{ font-family:"Segoe UI",sans-serif; font-weight:700; font-size:10px; }
+          .t1{ font-family:"Segoe UI",sans-serif; font-size:9px; fill:#1a1d24; }
+          .t2{ font-family:"Consolas",monospace; font-size:8.6px; fill:#54607a; }
+        </style>
+      </defs>
+
+      <!-- untrusted region -->
+      <rect x="10" y="18" width="300" height="214" rx="10" fill="#fdf3f3" stroke="#d9a7aa" stroke-width="1.3"/>
+      <text class="reg" x="160" y="40" text-anchor="middle" fill="#a3232b">UNTRUSTED &mdash; the candidate</text>
+      <text class="t1" x="160" y="60" text-anchor="middle">LLM- or template-authored</text>
+      <rect x="40" y="78" width="240" height="40" rx="7" fill="#ffffff" stroke="#d9a7aa"/>
+      <text class="t2" x="160" y="95" text-anchor="middle">_evict_score(la, fr, ins, t)  &rarr; rank</text>
+      <text class="t2" x="160" y="110" text-anchor="middle">CMUL = N        (a single literal knob)</text>
+      <text class="t1" x="160" y="142" text-anchor="middle" style="font-style:italic;">provides LOGIC only —</text>
+      <text class="t1" x="160" y="156" text-anchor="middle" style="font-style:italic;">never a hit-rate, never a score</text>
+      <text class="t1" x="160" y="186" text-anchor="middle" fill="#a3232b" style="font-weight:700;">&#10007; no channel to the number</text>
+      <text class="t2" x="160" y="206" text-anchor="middle" fill="#a3232b">a candidate that also returns (1.0, cap)</text>
+      <text class="t2" x="160" y="218" text-anchor="middle" fill="#a3232b">is discarded — driver records the honest 0.0</text>
+
+      <!-- arrow across -->
+      <path d="M312,118 L398,118" stroke="#3b4cca" stroke-width="1.6" fill="none" marker-end="url(#arr2)"/>
+      <text class="t2" x="355" y="110" text-anchor="middle" fill="#3b4cca">logic</text>
+      <path d="M398,150 L312,150" stroke="#a3232b" stroke-width="1.6" stroke-dasharray="4 3" fill="none" marker-end="url(#arrX)"/>
+      <text class="t2" x="355" y="170" text-anchor="middle" fill="#a3232b">score &times; (blocked)</text>
+
+      <!-- trusted region -->
+      <rect x="400" y="18" width="310" height="214" rx="10" fill="#eef6f1" stroke="#9ccbb1" stroke-width="1.3"/>
+      <text class="reg" x="555" y="40" text-anchor="middle" fill="#1f7a4d">TRUSTED &mdash; the domain driver</text>
+      <text class="t1" x="555" y="60" text-anchor="middle">engine-owned code · the test suite&rsquo;s subject</text>
+      <rect x="430" y="78" width="250" height="84" rx="7" fill="#ffffff" stroke="#9ccbb1"/>
+      <text class="t2" x="555" y="98" text-anchor="middle">runs the cache simulation</text>
+      <text class="t2" x="555" y="114" text-anchor="middle">owns the hit counter</text>
+      <text class="t2" x="555" y="130" text-anchor="middle">clamps the capacity knob</text>
+      <text class="t2" x="555" y="146" text-anchor="middle">computes CR = hits / Belady-OPT</text>
+      <text class="t1" x="555" y="186" text-anchor="middle" fill="#1f7a4d" style="font-weight:700;">&#10003; the metric is computed,</text>
+      <text class="t1" x="555" y="202" text-anchor="middle" fill="#1f7a4d" style="font-weight:700;">never reported</text>
+      <text class="t2" x="555" y="220" text-anchor="middle">a pathological op can only degrade, not inflate</text>
+    </svg>
+    <figcaption class="figcap">Figure 2 — Verification by construction. The candidate supplies eviction
+    <em>logic</em>; trusted, engine-owned code runs the simulation and produces the score. The reward-hacking
+    channel is not policed — it is structurally absent.</figcaption>
+  </figure>
+
+  <h3>The cheat test</h3>
+  <p>The guarantee is pinned by a test that tries to cheat. A candidate is written that also defines a
+  function returning a perfect score. The harness binds the score to the <em>driver&rsquo;s</em> output and
+  discards the candidate&rsquo;s — so the recorded result is the driver&rsquo;s honest (poor) hit-rate on a
+  loop, not the perfect score the candidate tried to hand back. &ldquo;Unfakeable&rdquo; here is not an
+  adjective; it is a passing test.</p>
+
+  <div class="callout good">
+    <div class="callout-h">The pattern, stated generally</div>
+    <p>Do not ask the system under evaluation for the number. Have it supply only the <em>mechanism</em>,
+    and let trusted code you control produce the measurement by running that mechanism. Then make the cost
+    axis exact and the test suite fixed, so two candidates are truly comparable. This is the difference
+    between an evaluation that <em>asks</em> and one that <em>checks</em> — and it scales to any setting
+    where you can run the artifact instead of reading its self-report.</p>
+  </div>
+
+  <p>The design itself was chosen adversarially: three candidate architectures were scored by a panel of
+  judges, and the trusted-driver design won with a perfect soundness score and zero residual cheats found.
+  The same rigor was then turned on v8&rsquo;s own first results — with consequences described next.</p>
+</section>
+
+<!-- ================= 5. LADDER OF HONESTY ================= -->
+<section>
+  <h2><span class="num">05</span>The ladder of honesty</h2>
+
+  <p>The spine of the project is a sequence in which <strong>each version&rsquo;s honest self-assessment set
+  the next version&rsquo;s agenda</strong>, and improving the measurement repeatedly destroyed a prior
+  headline. This is the opposite of how benchmark numbers usually move. It is worth seeing the whole arc at
+  once.</p>
+
+  <table>
+    <caption>Table 1 — Twelve generations. The right-hand column is the honest finding that drove the next move.</caption>
+    <thead><tr><th style="width:7%">Ver.</th><th style="width:30%">What it added</th><th style="width:63%">The honest finding (and the agenda it set)</th></tr></thead>
+    <tbody>
+      <tr><td class="mono-cell">v0–v1</td><td>Structured search over top-K; adaptive hybrid synthesis; conceptual memory; computed drift signals.</td><td>Top-K is closed (known optimum). Recombination suffices; the synthesis win is noise-sized. <em>Need an open problem with real headroom.</em></td></tr>
+      <tr><td class="mono-cell">v2–v3</td><td>Heavy-hitters domain; Pareto-frontier reward; the Adversary attacks the <em>metric</em> and hardens the suite; a compositional grammar that re-derives Space-Saving.</td><td>Genuine compositional invention, but within a hand-designed basis. <em>Open the vocabulary itself.</em></td></tr>
+      <tr><td class="mono-cell">v4–v5</td><td>Policies composed from low-level ops; Builder and Adversary author <em>new ops and generators as source code</em>, screened and grounded before admission; provenance tracking.</td><td>The machine can author and ground a primitive outside its vocabulary — but it only <em>matches</em> the best human. <em>Proposal quality is the new ceiling.</em></td></tr>
+      <tr><td class="mono-cell">v6</td><td>Causal guidance (feed the proposer the actual failing trace); self-play; explicit beats/matches/below-human utility flags.</td><td>First machine primitive to <em>beat</em> the best human (<code>declow</code>, brute-force-confirmed) — but only on the memory axis, on a recall-saturated domain. <em>Change the problem.</em></td></tr>
+      <tr><td class="mono-cell">v7</td><td>Cache-eviction domain with a B&eacute;l&aacute;dy oracle and real headroom.</td><td>Reported <b class="b-warn">3 beats-human</b> on the primary metric — but measured on a run-variable suite with a noisy cost axis. <em>Make the metric unfakeable and reproducible.</em></td></tr>
+      <tr><td class="mono-cell">v8</td><td>The trusted driver (&sect;4); exact-capacity cost; a fixed evaluation suite; the propose&rarr;compose loop closed.</td><td>Applying that rigor to v7&rsquo;s own claims, the honest reproducible count fell to <b class="b-bad">1</b>. The deliverable was <em>trust</em>, not a bigger number. <em>No static score dominates all regimes — need adaptive policies.</em></td></tr>
+      <tr><td class="mono-cell">v9</td><td>Bounded adaptive state in the trusted driver (regime detection); competitive-ratio quality; a declared weighted benchmark.</td><td>First <em>robust</em> wins and the first <b class="b-good">open-invented</b> beats-human from capable models — but the human baseline was still only the four static classics. <em>Raise the bar to the humans&rsquo; adaptive algorithms.</em></td></tr>
+      <tr><td class="mono-cell">v10</td><td>ARC and a LeCaR-style policy as adaptive human baselines, measured through the identical harness; two-tier grading; a completeness gate; enforced statelessness.</td><td>Surprisingly, the adaptive wins <em>held</em> against ARC/LeCaR. But the bar was still three capacities, one seed, two reference algorithms. <em>Validate, broaden, and stress the bar until it cannot flatter a candidate.</em></td></tr>
+      <tr><td class="mono-cell">v11</td><td>A design constitution; dual-validated references; 2Q + W-TinyLFU added; multi-seed measurement; a cost-charge sweep; a fresh hold-out family; rubric-scrubbed prompts.</td><td><b class="b-bad">The streak ends:</b> 0/10 prior winners survive the broadened bar; the two that still beat on the home suite are flagged overfit by the hold-out. <em>The real frontier work is generalization, not benchmark margin.</em></td></tr>
+    </tbody>
+  </table>
+
+  <p class="pull">Three times the project reported a worse number than the version before — on purpose, and
+  counted each as a success. That is the behavior a trustworthy evaluation must have and almost none do.</p>
+
+  <h3>The v7&rarr;v8 collapse, in detail</h3>
+  <p>It is worth dwelling on the moment the discipline first bit. Version&nbsp;7&rsquo;s &ldquo;three
+  beats-human&rdquo; was not fraud; it was the ordinary way benchmark numbers inflate. The cost axis was a
+  noisy memory measurement, so a proposed op could look marginally cheaper than an equally-capable human
+  policy and thereby &ldquo;win&rdquo; a comparison it had not earned; and the evaluation suite varied from
+  run to run, so the win was partly an artifact of which attacks happened to be admitted that run. Version 8
+  made the cost an exact integer and fixed the suite. The same ops were re-graded. Two of the three wins
+  dissolved. The project wrote that down as its headline result and moved on. A research system that
+  exposes its own inflation is doing precisely the thing the field most needs evaluation to do.</p>
+</section>
+
+<!-- ================= 6. V11 ================= -->
+<section>
+  <h2><span class="num">06</span>v11: the design constitution and the end of the streak</h2>
+
+  <p>By version&nbsp;11 the project had learned a deeper lesson than any single fix. It is not enough to make
+  one metric unfakeable. You need a <em>policy</em> for every metric you will ever add — a way to decide, in
+  advance, which numbers may touch the optimization loop at all. That policy is the design constitution.</p>
+
+  <h3>Three kinds of metric</h3>
+  <table>
+    <caption>Table 2 — The v11 design constitution. Every metric is classified before it is wired in.</caption>
+    <thead><tr><th style="width:18%">Class</th><th style="width:40%">Definition</th><th style="width:42%">Where it is allowed to live</th></tr></thead>
+    <tbody>
+      <tr><td><b>Unfakeable</b></td><td>Computed by trusted code that ran the candidate (e.g. the competitive ratio).</td><td>In the loop, and in the machine-checkable claims file.</td></tr>
+      <tr><td><b>Alignable</b></td><td>A metric where <em>gaming it is the goal</em> — e.g. behavioral distance, where being genuinely different is the point.</td><td>Loop-visible. There is no exploit, because the exploit is the objective.</td></tr>
+      <tr><td><b>Insulatable</b></td><td>A judgment <em>about the generator</em>: &ldquo;was this invented or interpolated?&rdquo;, &ldquo;is the write-up honest?&rdquo;</td><td><b>Never computed in the repo.</b> The repo emits an evidence bundle; an external reviewer judges; findings return only as problems.</td></tr>
+    </tbody>
+  </table>
+
+  <p>The third row is the most striking decision in the project. The repository <strong>stopped trying to
+  answer &ldquo;was this invented?&rdquo;</strong> Any in-house metric for inventiveness would itself become
+  a target the generator could optimize toward, manufacturing the <em>appearance</em> of novelty. So that
+  judgment was moved entirely outside the system. Each run emits an audit bundle — the post-scrub prompts,
+  every proposed fragment including the rejected ones, a template-library hash stamped against the benchmark
+  version — for an external reviewer to assess. The only novelty signal kept <em>inside</em> the loop is
+  behavioral distance, which is alignable: a candidate that scores well on it is, by definition, behaving
+  differently, which is exactly what was wanted.</p>
+
+  <div class="callout violet">
+    <div class="callout-h">The leak rule</div>
+    <p>Information may flow from evaluation back to generation — but only of one kind. It may carry
+    <strong>problems</strong>: the trace a policy failed on, the keys it missed, the verbatim text of a
+    contract error. It may <em>never</em> carry <strong>rubrics</strong>: the epsilon, the benchmark
+    weights, the worked idioms, the thresholds. Telling a generator <em>what went wrong</em> sharpens it;
+    telling it <em>how it will be scored</em> teaches it to overfit the grader. The rule draws that line
+    precisely, and a test enforces it.</p>
+  </div>
+
+  <h3>The rubric scrub</h3>
+  <p>The leak rule was applied with unusual severity. The proposer-facing prompts had, over earlier
+  versions, accumulated worked examples — a canonical adaptive-state update written out, a threshold-switch
+  policy with its exact constants, sentences explaining what scores well. All of it was removed. The reason
+  is forward-looking: a capable-model run on the <em>scrubbed</em> prompts would be the first clean reading
+  of what the models produce given <strong>capability without idiom</strong> — invention rather than
+  imitation of a taught pattern. Tellingly, the project treats &ldquo;the models produce nothing admissible
+  without the worked example&rdquo; as a live and <em>informative</em> possible outcome, not a failure to be
+  engineered around.</p>
+
+  <h3>Making the bar real — and the streak ending</h3>
+  <p>In parallel, the bar itself was hardened along four axes, then frozen (the freeze is visible in the git
+  history):</p>
+  <ul class="tight">
+    <li><strong>Validated references.</strong> An independent ARC implementation was written from the
+    original paper&rsquo;s case structure, using different data structures, and required to agree
+    <em>hit-for-hit</em> with the canonical one across all 63 trace&times;capacity combinations. It did.</li>
+    <li><strong>Broadened tier.</strong> 2Q and W-TinyLFU — among the strongest known policies — joined ARC
+    and LeCaR, all charged for their metadata through a single cost-accounting site.</li>
+    <li><strong>Multi-seed measurement.</strong> Five seeds per workload, with a declared rule for when a
+    margin counts as a win versus when it is &ldquo;fragile&rdquo; (straddling the boundary across seeds),
+    and a selection penalty that scales the bar with the number of candidates graded.</li>
+    <li><strong>A charge sweep and a hold-out family.</strong> The cost of metadata was swept across four
+    settings; a win counts as <em>robust</em> only if it survives all of them. And a fresh family of
+    workloads — same regimes, freshly drawn parameters and seeds — was generated at the end to test whether
+    wins transfer.</li>
+  </ul>
+
+  <table>
+    <caption>Table 3 — The frozen-bar re-grade of every prior winner. &ldquo;Declared charge&rdquo; is the single nominal cost setting; &ldquo;robust&rdquo; means winning at <em>every</em> point of the charge sweep.</caption>
+    <thead><tr><th>Re-graded population</th><th>Beats at declared charge</th><th>Robust beats (full sweep)</th></tr></thead>
+    <tbody>
+      <tr><td>10 prior v9/v10 winners</td><td class="b-warn">7 of 10</td><td class="b-bad">0 of 10</td></tr>
+      <tr><td>14 ops in the citable v11 run</td><td>2 of 14</td><td class="b-bad">0 of 14</td></tr>
+    </tbody>
+  </table>
+
+  <p>The mechanism of the collapse is precise. When metadata is charged nothing, W-TinyLFU (competitive
+  ratio ~0.93) and 2Q at resident-only cost dominate every candidate the project had produced. Version
+  10&rsquo;s claim that its wins &ldquo;survive ghost-free accounting&rdquo; had been true only against ARC
+  and LeCaR; the stronger references close the gap. Every op that still beat at the nominal charge was
+  adaptive; every static blend fell to a fragile match — exactly the knife-edge the multi-seed rule was
+  built to expose.</p>
+
+  <div class="callout warn">
+    <div class="callout-h">The hold-out finding — the run&rsquo;s real headline</div>
+    <p>The two ops that still beat on the home benchmark were sent against the freshly-drawn family. Both
+    lost decisively to W-TinyLFU:</p>
+    <p style="font-family:'Consolas',monospace; font-size:8.8pt; margin:.1in 0;">
+      ad_thrash &nbsp; bench&nbsp;<b class="b-good">+0.035</b> &nbsp;&rarr;&nbsp; hold-out&nbsp;<b class="b-bad">&minus;0.171</b><br>
+      ad_guard15 &nbsp; bench&nbsp;<b class="b-good">+0.059</b> &nbsp;&rarr;&nbsp; hold-out&nbsp;<b class="b-bad">&minus;0.137</b>
+    </p>
+    <p>A swing of roughly 0.2 against a 0.05 overfit threshold. The threshold-switch idiom&rsquo;s wins were
+    calibrated to the declared suite&rsquo;s exact parameters; on cousins of the same regimes they did not
+    transfer. Both ops carry <code>overfit: true</code> in the run&rsquo;s claims file. The verdict layer
+    now says, with evidence at every level: <strong>the current family of policies does not robustly beat
+    the best adaptive humans, and the real work ahead is generalization, not benchmark margin.</strong></p>
+  </div>
+
+  <p>One quiet corroboration is worth noting. The behavioral-distance signal — the only in-loop novelty
+  metric — independently flagged those same two ops as the most behaviorally distant from any reference. The
+  inside-the-loop signal and the outside hold-out judgment agreed, without the repository ever scoring
+  &ldquo;inventiveness&rdquo; directly.</p>
+</section>
+
+<!-- ================= 7. LESSONS ================= -->
+<section>
+  <h2><span class="num">07</span>What this teaches about the frontier of AI</h2>
+
+  <p>RDE is a small system on humble problems. But it was built around exactly the questions that dominate
+  the frontier, and the discipline it enforces generalizes cleanly. Seven lessons are worth carrying
+  forward.</p>
+
+  <h4>1 — Generation is cheap; trustworthy verification is the bottleneck.</h4>
+  <p>Almost the entire system is verification machinery wrapped around a tiny generator. As models get more
+  capable, this ratio is the future. The scarce, valuable engineering is not the part that proposes — it is
+  the part that can be trusted to say whether the proposal is real.</p>
+
+  <h4>2 — The generator&ndash;grader separation must be structural, not procedural.</h4>
+  <p>A rule that says &ldquo;the model shouldn&rsquo;t grade itself&rdquo; is a procedure, and capable
+  systems route around procedures. The trusted driver makes the separation <em>structural</em>: the grade is
+  computed by code the candidate cannot reach. Wherever you can run an artifact rather than read its
+  self-report, you can build this guarantee.</p>
+
+  <h4>3 — Reward hacking is the default, and every new degree of freedom opens a new one.</h4>
+  <p>Each capability added to the candidate contract opened an exploit, and an adversarial review
+  <em>reproduced</em> each as a working attack before it was closed: a free-form score that could report the
+  optimum; a capacity knob that could be charged cheap while run expensive; rebinding tricks that slipped
+  past a naive check. Each was closed structurally — an exact literal-only knob, a whole-program binding
+  census, a single cost-accounting site. The lesson is not &ldquo;patch the exploits&rdquo; but
+  &ldquo;expect every new freedom to be one, and design the closure into the contract.&rdquo;</p>
+
+  <h4>4 — Move judgments the model could rationalize out of the model.</h4>
+  <p>&ldquo;Are we making progress?&rdquo; is computed from history and handed to the Synthesizer as a fact,
+  not asked of it. &ldquo;Was this invented?&rdquo; is removed from the repository entirely and given to an
+  external reviewer. The principle: any judgment a capable system has an incentive to shade is a judgment
+  that system should not be the one to make.</p>
+
+  <h4>5 — Distinguish problems from rubrics in every feedback channel.</h4>
+  <p>The leak rule is a precise, implementable statement of how to give a generator feedback without
+  teaching it the test. Failing traces, missed cases, verbatim errors — yes. Weights, thresholds, worked
+  idioms — no. This single distinction separates feedback that builds capability from feedback that
+  manufactures benchmark-fit.</p>
+
+  <h4>6 — Overfitting hides inside benchmarks; hold-outs drawn from the same family flush it out.</h4>
+  <p>A win on a fixed suite is consistent with both real capability and quiet memorization of the
+  suite&rsquo;s quirks. The decisive test is a freshly-drawn family of the same kind of problem. The two
+  v11 ops that looked like wins were unmasked the moment they faced cousins they had not been tuned to. For
+  anyone reading model evaluations, this is the question to ask of every reported number: <em>does it
+  transfer to a draw the system never saw?</em></p>
+
+  <h4>7 — Honest culture is load-bearing, not decoration.</h4>
+  <p>The architecture only produces trust because &ldquo;the streak ended&rdquo; is reported plainly and a
+  worse number is counted as a success. A system that hides its own inflation is worse than no system,
+  because it spends credibility it has not earned. The rule &ldquo;never tune the gates, weights, seeds, or
+  epsilon to preserve a headline&rdquo; is what makes the final null result believable — and it is exactly
+  the rule the broader field most often breaks.</p>
+
+  <div class="callout">
+    <div class="callout-h">The uncomfortable conclusion, stated cleanly</div>
+    <p>After twelve generations of increasingly capable proposers — including frontier models proposing
+    freely — the honest finding on this domain is that <em>nothing robustly out-performs the best human
+    algorithms once you measure carefully, charge fairly, and test on fresh draws.</em> That is not a
+    failure of the engine. It is the engine working: it is what an honest discovery system is <em>supposed</em>
+    to tell you when the genuine discovery has not yet happened. The value is in being able to believe it.</p>
+  </div>
+</section>
+
+<!-- ================= 8. LIMITS ================= -->
+<section>
+  <h2><span class="num">08</span>Limits, open questions, and what comes next</h2>
+
+  <p>In the spirit of the project, here is what RDE is <em>not</em>, and what remains genuinely open.</p>
+
+  <h3>What it is not</h3>
+  <ul>
+    <li><strong>Not autonomous science.</strong> RDE is a disciplined harness on small algorithmic domains
+    with known oracles. It is a model of the verification problem, not a system doing open-ended research.
+    Its honesty about scope is part of its value.</li>
+    <li><strong>Not a hardened sandbox.</strong> The code-execution defenses are layered and adequate for a
+    trusted local setting; a determined adversary with an unrestricted standard library could find gaps. The
+    report says so directly rather than implying more safety than it has.</li>
+    <li><strong>Not de-novo invention, yet.</strong> The wins it has produced were authored within idioms the
+    proposer had been shown. Whether capability without those idioms invents anything admissible is precisely
+    the open question below.</li>
+  </ul>
+
+  <h3>The pending experiment: capability without idiom</h3>
+  <p>The single most interesting open item is a capable-model run on the rubric-scrubbed prompts — the first
+  clean reading of what frontier models produce when the worked examples have been removed and only the
+  problem remains. All four outcomes are publishable: a robust win, a fragile win, a benchmark-only win, or
+  nothing admissible at all. That last outcome — &ldquo;the models invent nothing the bar will accept once
+  the idiom is gone&rdquo; — would itself be a significant and honest finding about the current frontier.
+  The run is deliberately gated on operator confirmation and a credential rotation; it has not been launched.</p>
+
+  <h3>Where the frontier work actually is now</h3>
+  <ul>
+    <li><strong>Generalization, not margin.</strong> The hold-out result relocated the goalpost. Candidate
+    mechanisms must win on <em>families</em> of workloads, not points on a fixed suite. An objective that
+    rewards transfer directly is the natural next design.</li>
+    <li><strong>A still-stronger reference tier.</strong> The adaptive bar lacks LIRS and uses one
+    deterministic LeCaR variant. Every reference added has, so far, made the project&rsquo;s own claims
+    harder to sustain — which is the point.</li>
+    <li><strong>A second trusted-driver domain.</strong> Admission control or bin-packing, built on the same
+    generic gate, would show that &ldquo;trusted driver + competitive ratio + declared benchmark&rdquo; is an
+    architecture rather than a cache-specific trick.</li>
+  </ul>
+
+  <div class="callout good">
+    <div class="callout-h">A note on reproducibility</div>
+    <p>The verdict layer is deterministic: ten independent runs sharing an admitted vocabulary produce
+    bit-identical grades. What is load-sensitive is vocabulary <em>formation</em> — under heavy machine load
+    the proposal trajectory shifts, so a different set of ops gets proposed. The claims file makes this
+    detectable rather than silent by recording how many ops were graded, and the bar scales with that count.
+    Even the system&rsquo;s own non-determinism is surfaced as data instead of hidden.</p>
+  </div>
+</section>
+
+<!-- ================= CLOSING ================= -->
+<section>
+  <h2><span class="num">09</span>Closing: the discipline of the disappointing result</h2>
+
+  <p class="lead">It would have been easy to ship this project as a success story. Several versions produced
+  real, defensible &ldquo;machine beats human&rdquo; headlines, and each was true under the bar of its day.
+  The choice that makes RDE worth a frontier audience&rsquo;s attention is that it kept raising the bar
+  <em>after</em> clearing it — and reported, without flinching, when the headlines fell.</p>
+
+  <p>The deepest result is therefore not in the cache domain at all. It is a demonstration that you can build
+  an AI system whose success metric is robust to the intelligence operating inside it: where the grade is
+  computed, not reported; where the judge that may declare victory is fed facts it cannot rationalize away;
+  where the question &ldquo;did it really invent something&rdquo; is held outside the system because the
+  system would otherwise learn to fake the answer; and where the operating culture treats a worse, truer
+  number as the goal. When such a system is run honestly across twelve generations and frontier proposers,
+  and its verdict is &ldquo;not yet,&rdquo; that verdict is worth more than any headline it discarded along
+  the way.</p>
+
+  <p>That is the frontier this project actually advances. Not &ldquo;the machine discovered a better cache
+  policy.&rdquo; The harder and more valuable thing: <strong>a machine you can believe when it tells you it
+  hasn&rsquo;t.</strong></p>
+
+  <p class="pull" style="margin-top:.4in;">A result that lowers the headline is a success.<br>
+  <span style="font-size:10pt; font-weight:400; color:var(--muted); font-style:italic;">— the rule the whole
+  system is built to obey, and the one the field most needs to learn.</span></p>
+
+  <div class="end-note">
+    <p><b>About this document.</b> This is a narrative field report on the Recursive Discovery Engine,
+    written for readers tracking the frontier of AI. Every quantitative claim in it traces to the
+    project&rsquo;s own machine-checkable artifacts: the versioned README, the v11 design notes, the frozen-bar
+    re-grade script, and the per-run claims files, each of which is reproducible from the codebase. Numbers
+    are reported as the project reports them — including, deliberately, the ones that fell.</p>
+    <p class="small">Recursive Discovery Engine · Python standard-library core · OpenRouter LLM transport ·
+    domains: top-K selection, streaming heavy-hitters, cache eviction · 169 tests · v0&ndash;v11.</p>
+  </div>
+</section>
+
+</body>
+</html>

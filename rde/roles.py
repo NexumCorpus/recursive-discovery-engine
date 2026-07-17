@@ -207,6 +207,22 @@ class DetBuilder:
         # Fallback: the v2 single budget-switch hybrid, proposed once.
         if dom.compose and "__hybrid__" not in self._used_comps:
             code = dom.compose(parents)
+            if not code:
+                # Regime winners are timing observations, not a lossless record
+                # of the compatible material the run has discovered. Under
+                # benchmark noise they may omit a class that is still grounded
+                # and correct, making deterministic synthesis flicker between
+                # possible and impossible on identical inputs. Let the domain
+                # retry against every correct retained approach; its compose
+                # hook remains the authority on whether a meaningful hybrid
+                # exists.
+                selected = {p.id for p in parents}
+                retained = [a for a in ctx.memory.approaches
+                            if a.is_correct and a.id not in selected]
+                expanded = parents + retained
+                code = dom.compose(expanded)
+                if code:
+                    parents = expanded
             if code:
                 self._used_comps.add("__hybrid__")
                 return [Approach(
