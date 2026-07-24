@@ -9,8 +9,18 @@ ROOT = Path(__file__).resolve().parents[1]
 PREREG_PATH = ROOT / "causal_xenosoma_preregistration.json"
 
 
+def _jsonable(value):
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, list):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    return value
+
+
 def canonical(value):
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return json.dumps(_jsonable(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def digest(value):
