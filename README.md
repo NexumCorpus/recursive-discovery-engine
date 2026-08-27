@@ -1,10 +1,19 @@
-# Recursive Discovery Engine (RDE) — v11
+<div align="center">
+  <img src="./nexum-hero.svg" alt="Recursive Discovery Engine — discovery that exposes overfit" width="100%" />
 
-A small, runnable system that **explores approaches to a problem, evaluates them
-with real executable evidence, synthesizes genuinely better solutions, and guards
-against collapse** (recombination, drift, shared blind spots, low-value churn).
+  <p><strong>A discovery loop is only as real as the holdout that can erase its winners.</strong></p>
 
-## Honest assessment (v11)
+  <p><a href="#the-result">The result</a> · <a href="#quickstart">Quickstart</a> · <a href="./docs/V11_NOTES.md">v11 notes</a> · <a href="https://github.com/NexumCorpus">Nexum Corpus</a></p>
+</div>
+
+---
+
+The Recursive Discovery Engine explores candidate approaches, grades them with
+executable evidence, synthesizes stronger variants, and hardens its own
+evaluation surface against recombination, drift, shared blind spots, and
+low-value churn.
+
+## The result
 
 **Nothing achieves `robust_beats` against the frozen v11 bar — 0/10 prior
 winners, 0/14 in the citable run — and the holdout annotates the two remaining
@@ -332,7 +341,7 @@ PROPOSAL QUALITY (utility vs the human Pareto frontier, PRIMARY metric = hit rat
              net-positive frontier movement = YES
 
 PARETO FRONTIER (hit-rate x memory):
-  lfu(0.41,3KB)  aged_logf/c2(0.42,4KB)  lfu_aged2/c4(0.74,7KB)  [mut of a proposed op](0.75,7KB)
+  lfu(0.41,3KB)  aged_logf/c2(0.42,4KB)  lfu_aged2/c4(0.74,7KB)  **mut of a proposed op** (0.75, 7KB)
   RECOMMENDED within budget: ~0.75 hit rate @ 7KB  (seed LRU: 0.38)
 ```
 
