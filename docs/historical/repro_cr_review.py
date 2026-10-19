@@ -1,6 +1,10 @@
+# HISTORICAL (pre-v11): kept for the record. The adv_loop trace it reads was renamed
+# when the v11 benchmark froze, so it no longer runs; scripts/reproduce.py is the
+# current reproduction.
 # Reproduction for the "adversarial tail evaporates at CMUL=4" finding.
 import sys, types
-sys.path.insert(0, "E:/recursive-discovery-engine")
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from rde.domains import cache_eviction as ce
 
 SEED, K = 1234, 10

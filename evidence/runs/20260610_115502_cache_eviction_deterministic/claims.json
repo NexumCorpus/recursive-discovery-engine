@@ -1,0 +1,352 @@
+{
+  "run_id": "20260610_115502_cache_eviction_deterministic",
+  "domain": "cache_eviction",
+  "backend": "deterministic",
+  "status": "exhausted",
+  "utility_adaptive": {
+    "beats_human": 2,
+    "matches_human": 6,
+    "below_human": 6
+  },
+  "utility_static": {
+    "beats_human": 2,
+    "matches_human": 7,
+    "below_human": 5
+  },
+  "op_utility_adaptive": {
+    "rec_logf": "matches_human",
+    "lfu_aged": "matches_human",
+    "lfu_aged2": "matches_human",
+    "idle_penalty": "matches_human",
+    "aged_logf": "matches_human",
+    "scan_resist": "below_human",
+    "score_half": "below_human",
+    "rec_plus_f": "matches_human",
+    "freq_then_rec": "below_human",
+    "freq_over_age": "below_human",
+    "rec_sq_freq": "below_human",
+    "decay_hit": "below_human",
+    "ad_thrash": "beats_human",
+    "ad_guard15": "beats_human"
+  },
+  "op_utility_static": {
+    "rec_logf": "matches_human",
+    "lfu_aged": "matches_human",
+    "lfu_aged2": "matches_human",
+    "idle_penalty": "matches_human",
+    "aged_logf": "matches_human",
+    "scan_resist": "below_human",
+    "score_half": "below_human",
+    "rec_plus_f": "matches_human",
+    "freq_then_rec": "below_human",
+    "freq_over_age": "below_human",
+    "rec_sq_freq": "below_human",
+    "decay_hit": "matches_human",
+    "ad_thrash": "beats_human",
+    "ad_guard15": "beats_human"
+  },
+  "incomplete": {},
+  "human_baseline_incomplete": [],
+  "incoherent": null,
+  "recommended": "i8.0_mut4: recall=0.84 mem=6KB",
+  "recommended_grade": {
+    "static": "beats_human",
+    "static_margin": 0.0211,
+    "adaptive": "beats_human",
+    "adaptive_margin": 0.0126
+  },
+  "frontier_hypervolume": 0.4526,
+  "frontier_points": [
+    {
+      "id": "i4.v0_policy_rec_logf_c2",
+      "recall": 0.734,
+      "mem_KB": 3
+    },
+    {
+      "id": "i4.0_mut1",
+      "recall": 0.763,
+      "mem_KB": 4
+    },
+    {
+      "id": "i8.0_mut4",
+      "recall": 0.845,
+      "mem_KB": 6
+    }
+  ],
+  "benchmark_version": "v11-multiseed",
+  "n_graded": 14,
+  "selection_factor": 1.9518,
+  "fragile": {
+    "rec_logf": true,
+    "lfu_aged": false,
+    "lfu_aged2": false,
+    "idle_penalty": false,
+    "aged_logf": false,
+    "scan_resist": false,
+    "ad_thrash": false,
+    "ad_guard15": false,
+    "decay_hit": false,
+    "score_half": false,
+    "rec_plus_f": false,
+    "freq_then_rec": false,
+    "freq_over_age": false,
+    "rec_sq_freq": false
+  },
+  "sensitivity": {
+    "rec_logf": {
+      "0.0": "below_human",
+      "0.25": "matches_human",
+      "0.5": "matches_human",
+      "1.0": "matches_human"
+    },
+    "lfu_aged": {
+      "0.0": "below_human",
+      "0.25": "matches_human",
+      "0.5": "matches_human",
+      "1.0": "matches_human"
+    },
+    "lfu_aged2": {
+      "0.0": "below_human",
+      "0.25": "matches_human",
+      "0.5": "matches_human",
+      "1.0": "matches_human"
+    },
+    "decay_hit": {
+      "0.0": "below_human",
+      "0.25": "below_human",
+      "0.5": "below_human",
+      "1.0": "below_human"
+    },
+    "score_half": {
+      "0.0": "below_human",
+      "0.25": "below_human",
+      "0.5": "below_human",
+      "1.0": "below_human"
+    },
+    "rec_plus_f": {
+      "0.0": "below_human",
+      "0.25": "matches_human",
+      "0.5": "matches_human",
+      "1.0": "matches_human"
+    },
+    "freq_then_rec": {
+      "0.0": "below_human",
+      "0.25": "below_human",
+      "0.5": "below_human",
+      "1.0": "below_human"
+    },
+    "idle_penalty": {
+      "0.0": "below_human",
+      "0.25": "matches_human",
+      "0.5": "matches_human",
+      "1.0": "matches_human"
+    },
+    "aged_logf": {
+      "0.0": "below_human",
+      "0.25": "matches_human",
+      "0.5": "matches_human",
+      "1.0": "matches_human"
+    },
+    "scan_resist": {
+      "0.0": "below_human",
+      "0.25": "below_human",
+      "0.5": "below_human",
+      "1.0": "below_human"
+    },
+    "ad_thrash": {
+      "0.0": "below_human",
+      "0.25": "beats_human",
+      "0.5": "beats_human",
+      "1.0": "beats_human"
+    },
+    "ad_guard15": {
+      "0.0": "matches_human",
+      "0.25": "beats_human",
+      "0.5": "beats_human",
+      "1.0": "beats_human"
+    },
+    "freq_over_age": {
+      "0.0": "below_human",
+      "0.25": "below_human",
+      "0.5": "below_human",
+      "1.0": "below_human"
+    },
+    "rec_sq_freq": {
+      "0.0": "below_human",
+      "0.25": "below_human",
+      "0.5": "below_human",
+      "1.0": "below_human"
+    }
+  },
+  "robust_beats": [],
+  "holdout": {
+    "seed": 3379786821,
+    "suite": [
+      {
+        "name": "hold_loop",
+        "dist": "param:period=65;noise=0.05;skew=0.0",
+        "seeds": [
+          355373,
+          267877,
+          489102
+        ]
+      },
+      {
+        "name": "hold_zipfx",
+        "dist": "zipfx:e=2.19",
+        "seeds": [
+          355373,
+          267877,
+          489102
+        ]
+      },
+      {
+        "name": "hold_drift",
+        "dist": "drift",
+        "seeds": [
+          355386,
+          267890,
+          489115
+        ]
+      }
+    ],
+    "margins": {
+      "ad_thrash": {
+        "bench_margin": 0.0349,
+        "holdout_margin": -0.1706,
+        "comparator": "wtlfu2",
+        "overfit": true
+      },
+      "ad_guard15": {
+        "bench_margin": 0.0591,
+        "holdout_margin": -0.1367,
+        "comparator": "wtlfu2",
+        "overfit": true
+      }
+    }
+  },
+  "behavioral_distance": {
+    "rec_logf": {
+      "nearest": "arc4",
+      "distance": 0.0217
+    },
+    "lfu_aged": {
+      "nearest": "lru_bump_both_4",
+      "distance": 0.0137
+    },
+    "lfu_aged2": {
+      "nearest": "lfu_aged",
+      "distance": 0.0226
+    },
+    "decay_hit": {
+      "nearest": "lru_bump_both_2",
+      "distance": 0.0
+    },
+    "score_half": {
+      "nearest": "lfu_bump_both_4",
+      "distance": 0.0207
+    },
+    "rec_plus_f": {
+      "nearest": "rec_logf",
+      "distance": 0.0176
+    },
+    "freq_then_rec": {
+      "nearest": "lfu_bump_both_4",
+      "distance": 0.0
+    },
+    "idle_penalty": {
+      "nearest": "lru_bump_both_4",
+      "distance": 0.006
+    },
+    "aged_logf": {
+      "nearest": "lfu_aged2",
+      "distance": 0.0045
+    },
+    "scan_resist": {
+      "nearest": "lfu_bump_both_4",
+      "distance": 0.0
+    },
+    "ad_thrash": {
+      "nearest": "lru_bump_both_4",
+      "distance": 0.2562
+    },
+    "ad_guard15": {
+      "nearest": "twoq4",
+      "distance": 0.2247
+    },
+    "freq_over_age": {
+      "nearest": "score_half",
+      "distance": 0.0235
+    },
+    "rec_sq_freq": {
+      "nearest": "rec_plus_f",
+      "distance": 0.1567
+    }
+  },
+  "exposed_on": {
+    "rec_logf": [
+      "adv_loop",
+      "gen_sawtooth",
+      "param_p45_n30"
+    ],
+    "lfu_aged": [
+      "adv_loop",
+      "gen_sawtooth",
+      "param_p25_n30",
+      "param_p45_n30",
+      "param_p45_n5"
+    ],
+    "lfu_aged2": [
+      "adv_loop",
+      "gen_sawtooth",
+      "param_p25_n30",
+      "param_p45_n30",
+      "param_p45_n5"
+    ],
+    "decay_hit": [
+      "adv_loop",
+      "gen_sawtooth",
+      "param_p25_n30",
+      "param_p45_n30",
+      "param_p45_n5"
+    ],
+    "score_half": [
+      "adv_loop",
+      "gen_sawtooth",
+      "gen_slow_drift"
+    ],
+    "rec_plus_f": [
+      "adv_loop",
+      "gen_sawtooth",
+      "param_p45_n30"
+    ],
+    "freq_then_rec": [
+      "adv_loop",
+      "gen_sawtooth",
+      "gen_slow_drift"
+    ]
+  },
+  "mechanisms": {
+    "rec_logf": "reads {fr, la}; branchless",
+    "lfu_aged": "reads {fr, la, t}; branchless",
+    "lfu_aged2": "reads {fr, la, t}; branchless",
+    "decay_hit": "reads {la}; branchless",
+    "score_half": "reads {fr, ins, la, t}; branchless",
+    "rec_plus_f": "reads {fr, la}; branchless",
+    "freq_then_rec": "reads {fr, la}; branchless",
+    "idle_penalty": "reads {fr, la, t}; branchless",
+    "aged_logf": "reads {fr, la, t}; branchless",
+    "scan_resist": "reads {fr, ins, t}; branchless",
+    "ad_thrash": "reads {aux, fr, la}; 1 branch(es); aux-driven regime switch; custom aux dynamics",
+    "ad_guard15": "reads {aux, fr, la}; 1 branch(es); aux-driven regime switch; custom aux dynamics",
+    "freq_over_age": "reads {fr, la, t}; branchless",
+    "rec_sq_freq": "reads {fr, la}; branchless"
+  },
+  "booleans": {
+    "any_robust_beats": false,
+    "all_robust_beats_are_adaptive": false,
+    "any_winner_exposed": false,
+    "any_fragile_winner": false
+  },
+  "template_hash": "f616e53ead6c6d21"
+}

@@ -1,0 +1,38 @@
+{
+  "run_id": "20260610_115502_cache_eviction_deterministic",
+  "benchmark_version": "v11-multiseed",
+  "template_hash": "f616e53ead6c6d21",
+  "fragments_admitted": {
+    "rec_logf": "la + 30 * fr.bit_length()",
+    "lfu_aged": "fr - (t - la)",
+    "lfu_aged2": "2 * fr - (t - la)",
+    "idle_penalty": "fr - 2 * (t - la)",
+    "aged_logf": "la + 20 * fr.bit_length() - (t - la)",
+    "scan_resist": "fr * 100000 - (t - ins)",
+    "score_half": "la + (fr * (t - ins)) // 4",
+    "rec_plus_f": "la + 8 * fr",
+    "freq_then_rec": "fr * 100000 + la",
+    "freq_over_age": "fr * 1000 - (t - la) * 10",
+    "rec_sq_freq": "la + fr * fr",
+    "decay_hit": "[t, max(1, fr // 2 + 1), ins]",
+    "ad_thrash": "(-la) if aux[0] < 0.08 else (la + 30 * fr.bit_length())",
+    "ad_guard15": "(-la) if aux[0] < 0.15 else (la + 30 * fr.bit_length())"
+  },
+  "fragments_rejected": [],
+  "mechanisms": {
+    "rec_logf": "reads {fr, la}; branchless",
+    "lfu_aged": "reads {fr, la, t}; branchless",
+    "lfu_aged2": "reads {fr, la, t}; branchless",
+    "decay_hit": "reads {la}; branchless",
+    "score_half": "reads {fr, ins, la, t}; branchless",
+    "rec_plus_f": "reads {fr, la}; branchless",
+    "freq_then_rec": "reads {fr, la}; branchless",
+    "idle_penalty": "reads {fr, la, t}; branchless",
+    "aged_logf": "reads {fr, la, t}; branchless",
+    "scan_resist": "reads {fr, ins, t}; branchless",
+    "ad_thrash": "reads {aux, fr, la}; 1 branch(es); aux-driven regime switch; custom aux dynamics",
+    "ad_guard15": "reads {aux, fr, la}; 1 branch(es); aux-driven regime switch; custom aux dynamics",
+    "freq_over_age": "reads {fr, la, t}; branchless",
+    "rec_sq_freq": "reads {fr, la}; branchless"
+  }
+}

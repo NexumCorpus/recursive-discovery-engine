@@ -1,0 +1,128 @@
+======================================================================
+RECURSIVE DISCOVERY ENGINE -- run report (cache_eviction, deterministic)
+======================================================================
+status: EXHAUSTED   iterations: 8
+
+SEED:  seed_lru <recency> fit=0.400 nov=1.00 fgain=0.400 :: ok | recall=0.69 mem=3KB | perf=0.50 simpl=0.50 | wallt=44.2ms (noise=7%)
+BEST:  i8.0_mut4 <blended> fit=0.000 nov=0.00/b0.04 [recomb] fgain=0.000 :: ok | recall=0.84 mem=6KB | perf=0.49 simpl=0.43 | wallt=326.1ms (noise=5%)
+
+PARETO FRONTIER (recall x memory) -- the v2 result:
+    i4.v0_policy_rec_logf_c2 recall=0.73  3KB
+    i4.0_mut1                recall=0.76  4KB
+    i8.0_mut4                recall=0.84  6KB
+  hypervolume=0.4526  budget=7KB
+  seed: recall=0.69 mem=3KB
+  RECOMMENDED (best recall within budget): i8.0_mut4: recall=0.84 mem=6KB
+  RECOMMENDED ARTIFACT GRADE vs best human at <= its memory: adaptive tier: beats_human (+0.0126) | static tier: beats_human (+0.0211)
+
+VOCABULARY PROVENANCE (v5: human-designed vs system-proposed):
+  ops: 7 human, 14 proposed (3 on the frontier; see PROPOSAL QUALITY below for beats/matches/below-human)
+      proposed ops: ['rec_logf', 'lfu_aged', 'lfu_aged2', 'idle_penalty', 'aged_logf', 'scan_resist', 'score_half', 'rec_plus_f', 'freq_then_rec', 'freq_over_age', 'rec_sq_freq', 'decay_hit', 'ad_thrash', 'ad_guard15']
+  generator TYPES: 2 human (+ param/arsenal streams), 2 proposed (2 exposed a candidate)
+      proposed generators: ['gen_slow_drift', 'gen_sawtooth']
+
+PROPOSAL QUALITY:
+  HEADLINE -- vs best ADAPTIVE human (incl. ARC/LeCaR): 2 beats, 6 matches, 6 below
+      rec_logf: matches_human [fragile]
+          mech: reads {fr, la}; branchless
+      lfu_aged: matches_human
+          mech: reads {fr, la, t}; branchless
+      lfu_aged2: matches_human
+          mech: reads {fr, la, t}; branchless
+      idle_penalty: matches_human
+          mech: reads {fr, la, t}; branchless
+      aged_logf: matches_human
+          mech: reads {fr, la, t}; branchless
+      scan_resist: below_human
+          mech: reads {fr, ins, t}; branchless
+      score_half: below_human
+          mech: reads {fr, ins, la, t}; branchless
+      rec_plus_f: matches_human
+          mech: reads {fr, la}; branchless
+      freq_then_rec: below_human
+          mech: reads {fr, la}; branchless
+      freq_over_age: below_human
+          mech: reads {fr, la, t}; branchless
+      rec_sq_freq: below_human
+          mech: reads {fr, la}; branchless
+      decay_hit: below_human
+          mech: reads {la}; branchless
+      ad_thrash: beats_human
+          mech: reads {aux, fr, la}; 1 branch(es); aux-driven regime switch; custom aux dynamics
+      ad_guard15: beats_human
+          mech: reads {aux, fr, la}; 1 branch(es); aux-driven regime switch; custom aux dynamics
+  static tier (v6-compatible, vs the classic statics): 2 beats_human, 7 matches_human, 5 below_human
+      rec_logf: matches_human
+      lfu_aged: matches_human
+      lfu_aged2: matches_human
+      idle_penalty: matches_human
+      aged_logf: matches_human
+      scan_resist: below_human
+      score_half: below_human
+      rec_plus_f: matches_human
+      freq_then_rec: below_human
+      freq_over_age: below_human
+      rec_sq_freq: below_human
+      decay_hit: matches_human
+      ad_thrash: beats_human
+      ad_guard15: beats_human
+  self-play (proposed ops vs the BEST HUMAN policy per generator): 28 matches, win_rate=0.036, mean_margin=-0.1453; net-positive frontier movement=no
+      best: idle_penalty beat the best human on gen_slow_drift by +0.00
+  cross-run trend (1 runs, 14 ops): beats_human_rate=0.143 (trend n/a until >=2 runs)
+
+PER-ITERATION DECISIONS:
+  it1: CONTINUE  | best_fit=0.400 | recent_gain=+0.000 | frontier[1] hv=0.401 | METRIC-HARDENED | classes=recency
+          why: Healthy exploration; classes still unseen: ['frequency', 'insertion', 'adaptive'].
+          novelty: Structural novelty=0.00, behavioural novelty=0.0987. Recombination(s): ['i1.0_lru'].
+  it2: CONTINUE  | best_fit=0.400 | recent_gain=+0.000 | frontier[1] hv=0.401 | METRIC-HARDENED | classes=recency,frequency
+          why: Healthy exploration; classes still unseen: ['insertion', 'adaptive'].
+          novelty: Structural novelty=0.00, behavioural novelty=0.1404. No structural recombination.
+  it3: EXPLORE   | best_fit=0.400 | recent_gain=+0.000 | RECOMB-DOMINANT | frontier[1] hv=0.401 | classes=recency,frequency,insertion
+          why: Local patching detected; deliberately exploring an unseen class rather than varying the best.
+          novelty: Structural novelty=0.00, behavioural novelty=0.0441. No structural recombination. RECOMBINATION IS THE DOMINANT RECENT PATTERN.
+  it4: CONTINUE  | best_fit=0.400 | recent_gain=+0.000 | STALLED | frontier[3] hv=0.452 ADVANCED | classes=recency,frequency,insertion,blended
+          why: Healthy exploration; classes still unseen: ['adaptive'].
+          novelty: Structural novelty=0.08, behavioural novelty=0.0608. Recombination(s): ['i4.0_mut1', 'i4.v1_policy_rec_logf_c4', 'i4.v3_policy_lfu_aged_c4', 'i4.v4_policy_lfu_aged2_c2', 'i4.v5_policy_lfu_aged2_c4'].
+  it5: EXPLORE   | best_fit=0.452 | recent_gain=+0.052 | RECOMB-DOMINANT | frontier[3] hv=0.452 | METRIC-HARDENED | classes=recency,frequency,insertion,blended
+          why: Local patching detected; deliberately exploring an unseen class rather than varying the best.
+          novelty: Structural novelty=0.00, behavioural novelty=0.2362. Recombination(s): ['i5.0_mru']. RECOMBINATION IS THE DOMINANT RECENT PATTERN.
+  it6: EXPLORE   | best_fit=0.452 | recent_gain=+0.052 | RECOMB-DOMINANT | frontier[3] hv=0.452 | classes=recency,blended,frequency
+          why: Local patching detected; deliberately exploring an unseen class rather than varying the best.
+          novelty: Structural novelty=0.19, behavioural novelty=0.0356. Recombination(s): ['i6.0_mut2']. RECOMBINATION IS THE DOMINANT RECENT PATTERN.
+  it7: EXPLORE   | best_fit=0.452 | recent_gain=+0.052 | RECOMB-DOMINANT | frontier[3] hv=0.452 | classes=recency,blended,frequency
+          why: Local patching detected; deliberately exploring an unseen class rather than varying the best.
+          novelty: Structural novelty=0.00, behavioural novelty=0.1067. Recombination(s): ['i7.0_mut3', 'i7.v0_policy_score_half_c2', 'i7.v1_policy_score_half_c4', 'i7.v2_policy_rec_plus_f_c2', 'i7.v3_policy_rec_plus_f_c4', 'i7.v4_policy_freq_then_rec_c2', 'i7.v5_policy_freq_then_rec_c4']. RECOMBINATION IS THE DOMINANT RECENT PATTERN.
+  it8: EXPLORE   | best_fit=0.452 | recent_gain=+0.000 | STALLED | PATCHING(x2) | RECOMB-DOMINANT | frontier[3] hv=0.453 | classes=recency,blended
+          why: Local patching detected; deliberately exploring an unseen class rather than varying the best.
+          novelty: Structural novelty=0.00, behavioural novelty=0.0361. Recombination(s): ['i8.0_mut4']. RECOMBINATION IS THE DOMINANT RECENT PATTERN.
+
+CONCEPTS DISTILLED (transferable, structural):
+  - [hurts] fixed recency/frequency rule @ shifting / cyclic traces: a fixed eviction rule mis-ranks keys when the access pattern changes regime (loops, drift) -- it cannot forget a once-popular key (x15)
+  - [fact] recency @ 4KB: recency reaches recall 0.76 at 4KB (x5)
+  - [fact] blended @ 3KB: blended reaches recall 0.73 at 3KB (x5)
+  - [fact] blended @ 6KB: blended reaches recall 0.84 at 6KB (x5)
+  - [fact] recency @ 3KB: recency reaches recall 0.69 at 3KB (x3)
+
+EVENTS (bounded memory):
+  [lesson] (it7) i7.0_mut3 <blended> correct, fitness=0.000 [flagged recombination]
+  [lesson] (it7) i7.v0_policy_score_half_c2 <blended> correct, fitness=0.000 [flagged recombination]
+  [lesson] (it7) i7.v1_policy_score_half_c4 <blended> correct, fitness=0.000 [flagged recombination]
+  [lesson] (it7) i7.v2_policy_rec_plus_f_c2 <blended> correct, fitness=0.000 [flagged recombination]
+  [lesson] (it7) i7.v3_policy_rec_plus_f_c4 <blended> correct, fitness=0.000 [flagged recombination]
+  [lesson] (it7) i7.v4_policy_freq_then_rec_c2 <blended> correct, fitness=0.000 [flagged recombination]
+  [lesson] (it7) i7.v5_policy_freq_then_rec_c4 <blended> correct, fitness=0.000 [flagged recombination]
+  [drift] (it7) Drift ['recombination-dominant'] -> explore: Local patching detected; deliberately exploring an unseen class rather than varying the best.
+  [lesson] (it8) i8.0_mut4 <blended> correct, fitness=0.000 [flagged recombination]
+  [drift] (it8) Drift ['stalled', 'patching:2', 'recombination-dominant'] -> explore: Local patching detected; deliberately exploring an unseen class rather than varying the best.
+
+cost: deterministic
+artifacts: 
+
+BEST SOLUTION:
+----------------------------------------
+def _evict_score(la, fr, ins, t):
+    return la + 30 * fr.bit_length()
+
+def _on_hit(la, fr, ins, t):
+    return [t, fr + 2, ins]
+CMUL = 4

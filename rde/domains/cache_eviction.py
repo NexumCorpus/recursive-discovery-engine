@@ -1481,6 +1481,9 @@ DOMAIN = Domain(
     holdout_suite=holdout_suite,                     # v11 A4b
     audit_texts=lambda: {"CONTRACT": CONTRACT,
                          "OP_PROPOSER_SYS": OP_PROPOSER_SYS,
-                         "template_library": repr(_OP_TEMPLATES)},   # v11 C2
+                         # tag sets sorted: repr() of a set follows PYTHONHASHSEED,
+                         # which made the stamp differ on every run
+                         "template_library": repr([(k, n, f, sorted(t), note)
+                                                   for (k, n, f, t, note) in _OP_TEMPLATES])},   # v11 C2
     max_policy_cost_units=4,                         # v10 P5: max legal CMUL
 )

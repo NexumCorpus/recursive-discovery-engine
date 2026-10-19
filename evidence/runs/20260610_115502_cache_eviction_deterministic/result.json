@@ -1,0 +1,1104 @@
+{
+  "domain": "cache_eviction",
+  "backend": "deterministic",
+  "profile": "cheap",
+  "models": {
+    "builder": "openai/gpt-5-mini",
+    "adversary": "google/gemini-2.5-flash",
+    "synthesizer": "anthropic/claude-haiku-4.5"
+  },
+  "status": "exhausted",
+  "elapsed_s": 197.7,
+  "iterations_run": 8,
+  "improvement": {
+    "mode": "frontier",
+    "seed": "recall=0.69 mem=3KB",
+    "budget_KB": 7,
+    "recommended": "i8.0_mut4: recall=0.84 mem=6KB",
+    "frontier_hypervolume": 0.4526,
+    "frontier_points": [
+      {
+        "id": "i4.v0_policy_rec_logf_c2",
+        "recall": 0.734,
+        "mem_KB": 3
+      },
+      {
+        "id": "i4.0_mut1",
+        "recall": 0.763,
+        "mem_KB": 4
+      },
+      {
+        "id": "i8.0_mut4",
+        "recall": 0.845,
+        "mem_KB": 6
+      }
+    ],
+    "recommended_grade": {
+      "static": "beats_human",
+      "static_margin": 0.0211,
+      "adaptive": "beats_human",
+      "adaptive_margin": 0.0126
+    }
+  },
+  "usage": "deterministic",
+  "seed": {
+    "id": "seed_lru",
+    "code": "# v8-cache-policy\n# cmul=2\ndef _evict_score(la, fr, ins, t):\n    return la\ndef _on_hit(la, fr, ins, t):\n    return [t, fr + 1, ins]\nCMUL = 2",
+    "rationale": "LRU: evict the least-recently-used key.",
+    "algo_class": "recency",
+    "origin": "seed",
+    "parent_ids": [],
+    "created_iter": 0,
+    "evidence": {
+      "grounded": true,
+      "correct": true,
+      "failures": [],
+      "mutated_input": false,
+      "timings": {
+        "zipf": 0.013062200043350458,
+        "recency": 0.006943600019440055,
+        "drift": 0.010610199999064207,
+        "mixed": 0.013557799975387752
+      },
+      "timing_stddev": {
+        "zipf": 0.00054855654880276,
+        "recency": 0.0009054647232807903,
+        "drift": 0.0006582945420397838,
+        "mixed": 0.000601788812925242
+      },
+      "peak_memory_bytes": 3200,
+      "quality": 0.6865,
+      "quality_by_workload": {
+        "zipf": 0.705662,
+        "recency": 0.897683,
+        "drift": 0.778998,
+        "mixed": 0.661212,
+        "bench_loop": 0.0,
+        "bench_scan": 0.9484920000000001,
+        "bench_antag": 0.6090139999999999,
+        "adv_loop": 0.0,
+        "param_p25_n30": 0.255121,
+        "param_p45_n5": 0.277467,
+        "param_p45_n30": 0.205514,
+        "gen_sawtooth": 0.262499,
+        "gen_slow_drift": 0.912206
+      },
+      "loc": 5,
+      "ast_nodes": 32,
+      "perf_score": 0.5,
+      "mem_score": 0.5,
+      "simplicity_score": 0.5,
+      "error": null,
+      "traceback": null
+    },
+    "fitness": 0.400458,
+    "novelty": 1.0,
+    "is_recombination": false,
+    "fingerprint": {
+      "algo_class": "recency",
+      "calls": [],
+      "imports": [],
+      "node_hist": {
+        "Module": 1,
+        "FunctionDef": 2,
+        "Assign": 1,
+        "arguments": 2,
+        "Return": 2,
+        "Name": 5,
+        "Constant": 2,
+        "arg": 8,
+        "List": 1,
+        "Store": 1,
+        "Load": 5,
+        "BinOp": 1,
+        "Add": 1
+      },
+      "loops": 0,
+      "branches": 0,
+      "comprehensions": 0,
+      "syntax_ok": true
+    },
+    "behavior": {},
+    "behavioral_novelty": null,
+    "synthesis_gain": null,
+    "synthesis_brief": "",
+    "frontier_gain": 0.400458,
+    "ops_used": []
+  },
+  "best": {
+    "id": "i8.0_mut4",
+    "code": "def _evict_score(la, fr, ins, t):\n    return la + 30 * fr.bit_length()\n\ndef _on_hit(la, fr, ins, t):\n    return [t, fr + 2, ins]\nCMUL = 4",
+    "rationale": "AST mutation of i4.v1_policy_rec_logf_c4 (int 1->2)",
+    "algo_class": "blended",
+    "origin": "builder",
+    "parent_ids": [
+      "i4.v1_policy_rec_logf_c4"
+    ],
+    "created_iter": 8,
+    "evidence": {
+      "grounded": true,
+      "correct": true,
+      "failures": [],
+      "mutated_input": false,
+      "timings": {
+        "zipf": 0.013316699943970889,
+        "recency": 0.008895799983292818,
+        "drift": 0.013304200023412704,
+        "mixed": 0.009934599976986647,
+        "adv_loop": 0.003438600047957152,
+        "param_p25_n30": 0.01887400000123307,
+        "param_p45_n5": 0.014960500004235655,
+        "param_p45_n30": 0.035974099999293685,
+        "gen_sawtooth": 0.025988299981690943,
+        "gen_slow_drift": 0.08499850000953302,
+        "adv_scan": 0.029040299996268004,
+        "adv_antag": 0.009854599949903786,
+        "param_p25_n5": 0.006706200016196817,
+        "gen_phase": 0.013853599957656115,
+        "gen_burst": 0.036929699999745935
+      },
+      "timing_stddev": {
+        "zipf": 0.00028373262253404257,
+        "recency": 0.0005346113201147445,
+        "drift": 0.00119065514904103,
+        "mixed": 0.0003326186489444433,
+        "adv_loop": 0.0003918696985962838,
+        "param_p25_n30": 0.0006642192707088776,
+        "param_p45_n5": 0.0003007511073988065,
+        "param_p45_n30": 0.0018629689227984982,
+        "gen_sawtooth": 0.0011186513327415693,
+        "gen_slow_drift": 0.003775382323163569,
+        "adv_scan": 0.0008033254065366277,
+        "adv_antag": 0.0005213794031741637,
+        "param_p25_n5": 0.0004388771684517762,
+        "gen_phase": 0.000566235691144063,
+        "gen_burst": 0.0007502112873855323
+      },
+      "peak_memory_bytes": 6400,
+      "quality": 0.8446,
+      "quality_by_workload": {
+        "zipf": 0.887396,
+        "recency": 0.940257,
+        "drift": 0.931416,
+        "mixed": 0.936889,
+        "adv_loop": 1.0,
+        "param_p25_n30": 0.99785,
+        "param_p45_n5": 0.875607,
+        "param_p45_n30": 0.543281,
+        "gen_sawtooth": 1.0,
+        "gen_slow_drift": 0.993639,
+        "adv_scan": 1.0,
+        "adv_antag": 0.99061,
+        "param_p25_n5": 1.0,
+        "gen_phase": 0.981431,
+        "gen_burst": 0.845841,
+        "bench_loop": 0.0,
+        "bench_scan": 1.0,
+        "bench_antag": 0.9925476
+      },
+      "loc": 5,
+      "ast_nodes": 42,
+      "perf_score": 0.4885849168827777,
+      "mem_score": 0.3333333333333333,
+      "simplicity_score": 0.4324324324324324,
+      "error": null,
+      "traceback": null
+    },
+    "fitness": 0.000417,
+    "novelty": 0.0,
+    "is_recombination": true,
+    "fingerprint": {
+      "algo_class": "blended",
+      "calls": [
+        "fr.bit_length"
+      ],
+      "imports": [],
+      "node_hist": {
+        "Module": 1,
+        "FunctionDef": 2,
+        "Assign": 1,
+        "arguments": 2,
+        "Return": 2,
+        "Name": 6,
+        "Constant": 3,
+        "arg": 8,
+        "BinOp": 3,
+        "List": 1,
+        "Store": 1,
+        "Add": 2,
+        "Load": 7,
+        "Mult": 1,
+        "Call": 1,
+        "Attribute": 1
+      },
+      "loops": 0,
+      "branches": 0,
+      "comprehensions": 0,
+      "syntax_ok": true
+    },
+    "behavior": {
+      "times": {
+        "zipf": 0.013316699943970889,
+        "recency": 0.008895799983292818,
+        "drift": 0.013304200023412704,
+        "mixed": 0.009934599976986647,
+        "adv_loop": 0.003438600047957152,
+        "param_p25_n30": 0.01887400000123307,
+        "param_p45_n5": 0.014960500004235655,
+        "param_p45_n30": 0.035974099999293685,
+        "gen_sawtooth": 0.025988299981690943,
+        "gen_slow_drift": 0.08499850000953302,
+        "adv_scan": 0.029040299996268004,
+        "adv_antag": 0.009854599949903786,
+        "param_p25_n5": 0.006706200016196817,
+        "gen_phase": 0.013853599957656115,
+        "gen_burst": 0.036929699999745935
+      },
+      "wins": [],
+      "stale": true
+    },
+    "behavioral_novelty": 0.0361,
+    "synthesis_gain": null,
+    "synthesis_brief": "",
+    "frontier_gain": 0.000417,
+    "ops_used": []
+  },
+  "insights": [
+    {
+      "iteration": 4,
+      "kind": "failure",
+      "text": "Adversary exposed i4.0_mut1 <recency> gaming the metric: recall collapsed on ['adv_loop', 'param_p45_n5', 'param_p45_n30', 'gen_sawtooth']",
+      "related": [
+        "i4.0_mut1"
+      ],
+      "ts": 1781106741.2647545
+    },
+    {
+      "iteration": 4,
+      "kind": "failure",
+      "text": "Adversary exposed i4.v0_policy_rec_logf_c2 <blended> gaming the metric: recall collapsed on ['adv_loop', 'param_p45_n30', 'gen_sawtooth']",
+      "related": [
+        "i4.v0_policy_rec_logf_c2"
+      ],
+      "ts": 1781106742.157078
+    },
+    {
+      "iteration": 4,
+      "kind": "failure",
+      "text": "Adversary exposed i4.v2_policy_lfu_aged_c2 <blended> gaming the metric: recall collapsed on ['adv_loop', 'param_p25_n30', 'param_p45_n5', 'param_p45_n30', 'gen_sawtooth']",
+      "related": [
+        "i4.v2_policy_lfu_aged_c2"
+      ],
+      "ts": 1781106743.9499443
+    },
+    {
+      "iteration": 4,
+      "kind": "failure",
+      "text": "Adversary exposed i4.v4_policy_lfu_aged2_c2 <blended> gaming the metric: recall collapsed on ['adv_loop', 'param_p25_n30', 'param_p45_n5', 'param_p45_n30', 'gen_sawtooth']",
+      "related": [
+        "i4.v4_policy_lfu_aged2_c2"
+      ],
+      "ts": 1781106745.74574
+    },
+    {
+      "iteration": 4,
+      "kind": "lesson",
+      "text": "i4.0_mut1 <recency> correct, fitness=0.029 [flagged recombination]",
+      "related": [
+        "i4.0_mut1"
+      ],
+      "ts": 1781106752.5829287
+    },
+    {
+      "iteration": 4,
+      "kind": "lesson",
+      "text": "i4.v0_policy_rec_logf_c2 <blended> correct, fitness=0.010",
+      "related": [
+        "i4.v0_policy_rec_logf_c2"
+      ],
+      "ts": 1781106752.5829384
+    },
+    {
+      "iteration": 4,
+      "kind": "lesson",
+      "text": "i4.v1_policy_rec_logf_c4 <blended> correct, fitness=0.013 [flagged recombination]",
+      "related": [
+        "i4.v1_policy_rec_logf_c4"
+      ],
+      "ts": 1781106752.5829425
+    },
+    {
+      "iteration": 4,
+      "kind": "lesson",
+      "text": "i4.v2_policy_lfu_aged_c2 <blended> correct, fitness=0.000",
+      "related": [
+        "i4.v2_policy_lfu_aged_c2"
+      ],
+      "ts": 1781106752.5829465
+    },
+    {
+      "iteration": 4,
+      "kind": "lesson",
+      "text": "i4.v3_policy_lfu_aged_c4 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i4.v3_policy_lfu_aged_c4"
+      ],
+      "ts": 1781106752.5829506
+    },
+    {
+      "iteration": 4,
+      "kind": "lesson",
+      "text": "i4.v4_policy_lfu_aged2_c2 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i4.v4_policy_lfu_aged2_c2"
+      ],
+      "ts": 1781106752.5829544
+    },
+    {
+      "iteration": 4,
+      "kind": "lesson",
+      "text": "i4.v5_policy_lfu_aged2_c4 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i4.v5_policy_lfu_aged2_c4"
+      ],
+      "ts": 1781106752.582958
+    },
+    {
+      "iteration": 4,
+      "kind": "drift",
+      "text": "Drift ['stalled'] -> continue: Healthy exploration; classes still unseen: ['adaptive'].",
+      "related": [],
+      "ts": 1781106752.583121
+    },
+    {
+      "iteration": 5,
+      "kind": "failure",
+      "text": "Adversary exposed i5.0_mru <recency> gaming the metric: recall collapsed on ['adv_scan', 'adv_antag', 'param_p25_n5', 'param_p25_n30', 'param_p45_n5', 'param_p45_n30', 'gen_phase', 'gen_burst', 'gen_slow_drift']; suite hardened with ['adv_scan', 'adv_antag', 'param_p25_n5', 'gen_phase', 'gen_burst']",
+      "related": [
+        "i5.0_mru"
+      ],
+      "ts": 1781106756.8182082
+    },
+    {
+      "iteration": 5,
+      "kind": "lesson",
+      "text": "i5.0_mru <recency> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i5.0_mru"
+      ],
+      "ts": 1781106758.630735
+    },
+    {
+      "iteration": 6,
+      "kind": "lesson",
+      "text": "Builder proposed + grounded new update op 'decay_hit' (proposed-det): on a hit, DECAY the accumulated frequency (forget old bursts) then +1",
+      "related": [],
+      "ts": 1781106759.2325063
+    },
+    {
+      "iteration": 6,
+      "kind": "failure",
+      "text": "Adversary exposed i6.v0_policy_lru_decay_hit_c2 <recency> gaming the metric: recall collapsed on ['adv_loop', 'param_p25_n30', 'param_p45_n5', 'param_p45_n30', 'gen_sawtooth']",
+      "related": [
+        "i6.v0_policy_lru_decay_hit_c2"
+      ],
+      "ts": 1781106770.2045152
+    },
+    {
+      "iteration": 6,
+      "kind": "failure",
+      "text": "Adversary exposed i6.v1_policy_lfu_decay_hit_c2 <frequency> gaming the metric: recall collapsed on ['adv_loop', 'param_p25_n30', 'param_p45_n5', 'param_p45_n30', 'gen_sawtooth']",
+      "related": [
+        "i6.v1_policy_lfu_decay_hit_c2"
+      ],
+      "ts": 1781106771.1696618
+    },
+    {
+      "iteration": 6,
+      "kind": "lesson",
+      "text": "i6.0_mut2 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i6.0_mut2"
+      ],
+      "ts": 1781106773.6979687
+    },
+    {
+      "iteration": 6,
+      "kind": "lesson",
+      "text": "i6.v0_policy_lru_decay_hit_c2 <recency> correct, fitness=0.000",
+      "related": [
+        "i6.v0_policy_lru_decay_hit_c2"
+      ],
+      "ts": 1781106773.698005
+    },
+    {
+      "iteration": 6,
+      "kind": "lesson",
+      "text": "i6.v1_policy_lfu_decay_hit_c2 <frequency> correct, fitness=0.000",
+      "related": [
+        "i6.v1_policy_lfu_decay_hit_c2"
+      ],
+      "ts": 1781106773.698033
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "Builder proposed + grounded new score op 'score_half' (proposed-det): recency offset by frequency x age -- favours items that have earned reuse",
+      "related": [],
+      "ts": 1781106774.2639914
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "Builder proposed + grounded new score op 'rec_plus_f' (proposed-det): recency with a linear frequency bonus",
+      "related": [],
+      "ts": 1781106774.6902866
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "Builder proposed + grounded new score op 'freq_then_rec' (proposed-det): frequency primary, recency tie-break (LFU with an LRU tie-break)",
+      "related": [],
+      "ts": 1781106775.1262748
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "Builder proposed + grounded new score op 'freq_over_age' (proposed-det): frequency credit decayed linearly by idle time",
+      "related": [],
+      "ts": 1781106775.5480638
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "Builder proposed + grounded new score op 'rec_sq_freq' (proposed-det): recency with a SUPER-linear frequency bonus (very hot keys pinned)",
+      "related": [],
+      "ts": 1781106775.9708552
+    },
+    {
+      "iteration": 7,
+      "kind": "failure",
+      "text": "Adversary exposed i7.v0_policy_score_half_c2 <blended> gaming the metric: recall collapsed on ['adv_loop', 'gen_slow_drift', 'gen_sawtooth']",
+      "related": [
+        "i7.v0_policy_score_half_c2"
+      ],
+      "ts": 1781106804.2465224
+    },
+    {
+      "iteration": 7,
+      "kind": "failure",
+      "text": "Adversary exposed i7.v1_policy_score_half_c4 <blended> gaming the metric: recall collapsed on ['gen_slow_drift']",
+      "related": [
+        "i7.v1_policy_score_half_c4"
+      ],
+      "ts": 1781106805.3611903
+    },
+    {
+      "iteration": 7,
+      "kind": "failure",
+      "text": "Adversary exposed i7.v2_policy_rec_plus_f_c2 <blended> gaming the metric: recall collapsed on ['adv_loop', 'param_p45_n30', 'gen_sawtooth']",
+      "related": [
+        "i7.v2_policy_rec_plus_f_c2"
+      ],
+      "ts": 1781106806.3916378
+    },
+    {
+      "iteration": 7,
+      "kind": "failure",
+      "text": "Adversary exposed i7.v4_policy_freq_then_rec_c2 <blended> gaming the metric: recall collapsed on ['adv_loop', 'gen_slow_drift', 'gen_sawtooth']",
+      "related": [
+        "i7.v4_policy_freq_then_rec_c2"
+      ],
+      "ts": 1781106808.2667215
+    },
+    {
+      "iteration": 7,
+      "kind": "failure",
+      "text": "Adversary exposed i7.v5_policy_freq_then_rec_c4 <blended> gaming the metric: recall collapsed on ['gen_slow_drift']",
+      "related": [
+        "i7.v5_policy_freq_then_rec_c4"
+      ],
+      "ts": 1781106809.307492
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "i7.0_mut3 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i7.0_mut3"
+      ],
+      "ts": 1781106815.5390441
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "i7.v0_policy_score_half_c2 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i7.v0_policy_score_half_c2"
+      ],
+      "ts": 1781106815.5391064
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "i7.v1_policy_score_half_c4 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i7.v1_policy_score_half_c4"
+      ],
+      "ts": 1781106815.5391524
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "i7.v2_policy_rec_plus_f_c2 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i7.v2_policy_rec_plus_f_c2"
+      ],
+      "ts": 1781106815.539196
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "i7.v3_policy_rec_plus_f_c4 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i7.v3_policy_rec_plus_f_c4"
+      ],
+      "ts": 1781106815.5392382
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "i7.v4_policy_freq_then_rec_c2 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i7.v4_policy_freq_then_rec_c2"
+      ],
+      "ts": 1781106815.5392807
+    },
+    {
+      "iteration": 7,
+      "kind": "lesson",
+      "text": "i7.v5_policy_freq_then_rec_c4 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i7.v5_policy_freq_then_rec_c4"
+      ],
+      "ts": 1781106815.5393384
+    },
+    {
+      "iteration": 7,
+      "kind": "drift",
+      "text": "Drift ['recombination-dominant'] -> explore: Local patching detected; deliberately exploring an unseen class rather than varying the best.",
+      "related": [],
+      "ts": 1781106815.5396245
+    },
+    {
+      "iteration": 8,
+      "kind": "lesson",
+      "text": "i8.0_mut4 <blended> correct, fitness=0.000 [flagged recombination]",
+      "related": [
+        "i8.0_mut4"
+      ],
+      "ts": 1781106820.0707648
+    },
+    {
+      "iteration": 8,
+      "kind": "drift",
+      "text": "Drift ['stalled', 'patching:2', 'recombination-dominant'] -> explore: Local patching detected; deliberately exploring an unseen class rather than varying the best.",
+      "related": [],
+      "ts": 1781106820.0709455
+    }
+  ],
+  "concepts": [
+    {
+      "pattern": "fixed recency/frequency rule",
+      "polarity": "hurts",
+      "regime": "shifting / cyclic traces",
+      "detail": "a fixed eviction rule mis-ranks keys when the access pattern changes regime (loops, drift) -- it cannot forget a once-popular key",
+      "support": [
+        "i1.0_lru",
+        "i2.0_lfu",
+        "i3.0_fifo",
+        "i4.0_mut1",
+        "i4.v0_policy_rec_logf_c2",
+        "i4.v2_policy_lfu_aged_c2",
+        "i4.v4_policy_lfu_aged2_c2",
+        "i5.0_mru",
+        "i6.v0_policy_lru_decay_hit_c2",
+        "i6.v1_policy_lfu_decay_hit_c2",
+        "i7.v0_policy_score_half_c2",
+        "i7.v1_policy_score_half_c4",
+        "i7.v2_policy_rec_plus_f_c2",
+        "i7.v4_policy_freq_then_rec_c2",
+        "i7.v5_policy_freq_then_rec_c4"
+      ],
+      "confidence": 15,
+      "ts": 1781106709.6657238
+    },
+    {
+      "pattern": "recency",
+      "polarity": "fact",
+      "regime": "4KB",
+      "detail": "recency reaches recall 0.76 at 4KB",
+      "support": [
+        "i4.0_mut1"
+      ],
+      "confidence": 5,
+      "ts": 1781106752.5830395
+    },
+    {
+      "pattern": "blended",
+      "polarity": "fact",
+      "regime": "3KB",
+      "detail": "blended reaches recall 0.73 at 3KB",
+      "support": [
+        "i4.v0_policy_rec_logf_c2"
+      ],
+      "confidence": 5,
+      "ts": 1781106752.5830424
+    },
+    {
+      "pattern": "blended",
+      "polarity": "fact",
+      "regime": "6KB",
+      "detail": "blended reaches recall 0.84 at 6KB",
+      "support": [
+        "i4.v1_policy_rec_logf_c4",
+        "i8.0_mut4"
+      ],
+      "confidence": 5,
+      "ts": 1781106752.583044
+    },
+    {
+      "pattern": "recency",
+      "polarity": "fact",
+      "regime": "3KB",
+      "detail": "recency reaches recall 0.69 at 3KB",
+      "support": [
+        "seed_lru"
+      ],
+      "confidence": 3,
+      "ts": 1781106709.6657338
+    }
+  ],
+  "vocab_provenance": {
+    "human_ops": 7,
+    "proposed_ops": 14,
+    "proposed_ops_used": 3,
+    "beats_human": 2,
+    "matches_human": 7,
+    "below_human": 5,
+    "beats_adaptive_human": 2,
+    "matches_adaptive_human": 6,
+    "below_adaptive_human": 6,
+    "proposed_op_utility_adaptive": {
+      "rec_logf": "matches_human",
+      "lfu_aged": "matches_human",
+      "lfu_aged2": "matches_human",
+      "idle_penalty": "matches_human",
+      "aged_logf": "matches_human",
+      "scan_resist": "below_human",
+      "score_half": "below_human",
+      "rec_plus_f": "matches_human",
+      "freq_then_rec": "below_human",
+      "freq_over_age": "below_human",
+      "rec_sq_freq": "below_human",
+      "decay_hit": "below_human",
+      "ad_thrash": "beats_human",
+      "ad_guard15": "beats_human"
+    },
+    "proposed_op_fragments": {
+      "rec_logf": "la + 30 * fr.bit_length()",
+      "lfu_aged": "fr - (t - la)",
+      "lfu_aged2": "2 * fr - (t - la)",
+      "idle_penalty": "fr - 2 * (t - la)",
+      "aged_logf": "la + 20 * fr.bit_length() - (t - la)",
+      "scan_resist": "fr * 100000 - (t - ins)",
+      "score_half": "la + (fr * (t - ins)) // 4",
+      "rec_plus_f": "la + 8 * fr",
+      "freq_then_rec": "fr * 100000 + la",
+      "freq_over_age": "fr * 1000 - (t - la) * 10",
+      "rec_sq_freq": "la + fr * fr",
+      "decay_hit": "[t, max(1, fr // 2 + 1), ins]",
+      "ad_thrash": "(-la) if aux[0] < 0.08 else (la + 30 * fr.bit_length())",
+      "ad_guard15": "(-la) if aux[0] < 0.15 else (la + 30 * fr.bit_length())"
+    },
+    "human_generators": 2,
+    "proposed_generators": 2,
+    "proposed_generators_exposing": 2,
+    "proposed_op_names": [
+      "rec_logf",
+      "lfu_aged",
+      "lfu_aged2",
+      "idle_penalty",
+      "aged_logf",
+      "scan_resist",
+      "score_half",
+      "rec_plus_f",
+      "freq_then_rec",
+      "freq_over_age",
+      "rec_sq_freq",
+      "decay_hit",
+      "ad_thrash",
+      "ad_guard15"
+    ],
+    "proposed_op_utility": {
+      "rec_logf": "matches_human",
+      "lfu_aged": "matches_human",
+      "lfu_aged2": "matches_human",
+      "idle_penalty": "matches_human",
+      "aged_logf": "matches_human",
+      "scan_resist": "below_human",
+      "score_half": "below_human",
+      "rec_plus_f": "matches_human",
+      "freq_then_rec": "below_human",
+      "freq_over_age": "below_human",
+      "rec_sq_freq": "below_human",
+      "decay_hit": "matches_human",
+      "ad_thrash": "beats_human",
+      "ad_guard15": "beats_human"
+    },
+    "proposed_generator_names": [
+      "gen_slow_drift",
+      "gen_sawtooth"
+    ]
+  },
+  "v6_summary": {
+    "incoherent": null,
+    "utility": {
+      "beats_human": 2,
+      "matches_human": 7,
+      "below_human": 5
+    },
+    "utility_adaptive": {
+      "beats_human": 2,
+      "matches_human": 6,
+      "below_human": 6
+    },
+    "op_utility_adaptive": {
+      "rec_logf": "matches_human",
+      "lfu_aged": "matches_human",
+      "lfu_aged2": "matches_human",
+      "idle_penalty": "matches_human",
+      "aged_logf": "matches_human",
+      "scan_resist": "below_human",
+      "score_half": "below_human",
+      "rec_plus_f": "matches_human",
+      "freq_then_rec": "below_human",
+      "freq_over_age": "below_human",
+      "rec_sq_freq": "below_human",
+      "decay_hit": "below_human",
+      "ad_thrash": "beats_human",
+      "ad_guard15": "beats_human"
+    },
+    "op_utility": {
+      "rec_logf": "matches_human",
+      "lfu_aged": "matches_human",
+      "lfu_aged2": "matches_human",
+      "idle_penalty": "matches_human",
+      "aged_logf": "matches_human",
+      "scan_resist": "below_human",
+      "score_half": "below_human",
+      "rec_plus_f": "matches_human",
+      "freq_then_rec": "below_human",
+      "freq_over_age": "below_human",
+      "rec_sq_freq": "below_human",
+      "decay_hit": "matches_human",
+      "ad_thrash": "beats_human",
+      "ad_guard15": "beats_human"
+    },
+    "self_play": {
+      "matches": 28,
+      "win_rate": 0.036,
+      "mean_margin": -0.1453,
+      "best": "idle_penalty beat the best human on gen_slow_drift by +0.00"
+    },
+    "self_play_net_positive": false,
+    "history": {
+      "runs": 1,
+      "ops": 14,
+      "beats_human": 2,
+      "matches_human": 7,
+      "below_human": 5,
+      "beats_human_rate": 0.143,
+      "beats_rate_early": null,
+      "beats_rate_late": null,
+      "trend": "n/a"
+    },
+    "incomplete": {},
+    "human_baseline_incomplete": [],
+    "benchmark_version": "v11-multiseed",
+    "n_graded": 14,
+    "selection_factor": 1.9518,
+    "fragile": {
+      "rec_logf": true,
+      "lfu_aged": false,
+      "lfu_aged2": false,
+      "idle_penalty": false,
+      "aged_logf": false,
+      "scan_resist": false,
+      "ad_thrash": false,
+      "ad_guard15": false,
+      "decay_hit": false,
+      "score_half": false,
+      "rec_plus_f": false,
+      "freq_then_rec": false,
+      "freq_over_age": false,
+      "rec_sq_freq": false
+    },
+    "sensitivity": {
+      "rec_logf": {
+        "0.0": "below_human",
+        "0.25": "matches_human",
+        "0.5": "matches_human",
+        "1.0": "matches_human"
+      },
+      "lfu_aged": {
+        "0.0": "below_human",
+        "0.25": "matches_human",
+        "0.5": "matches_human",
+        "1.0": "matches_human"
+      },
+      "lfu_aged2": {
+        "0.0": "below_human",
+        "0.25": "matches_human",
+        "0.5": "matches_human",
+        "1.0": "matches_human"
+      },
+      "decay_hit": {
+        "0.0": "below_human",
+        "0.25": "below_human",
+        "0.5": "below_human",
+        "1.0": "below_human"
+      },
+      "score_half": {
+        "0.0": "below_human",
+        "0.25": "below_human",
+        "0.5": "below_human",
+        "1.0": "below_human"
+      },
+      "rec_plus_f": {
+        "0.0": "below_human",
+        "0.25": "matches_human",
+        "0.5": "matches_human",
+        "1.0": "matches_human"
+      },
+      "freq_then_rec": {
+        "0.0": "below_human",
+        "0.25": "below_human",
+        "0.5": "below_human",
+        "1.0": "below_human"
+      },
+      "idle_penalty": {
+        "0.0": "below_human",
+        "0.25": "matches_human",
+        "0.5": "matches_human",
+        "1.0": "matches_human"
+      },
+      "aged_logf": {
+        "0.0": "below_human",
+        "0.25": "matches_human",
+        "0.5": "matches_human",
+        "1.0": "matches_human"
+      },
+      "scan_resist": {
+        "0.0": "below_human",
+        "0.25": "below_human",
+        "0.5": "below_human",
+        "1.0": "below_human"
+      },
+      "ad_thrash": {
+        "0.0": "below_human",
+        "0.25": "beats_human",
+        "0.5": "beats_human",
+        "1.0": "beats_human"
+      },
+      "ad_guard15": {
+        "0.0": "matches_human",
+        "0.25": "beats_human",
+        "0.5": "beats_human",
+        "1.0": "beats_human"
+      },
+      "freq_over_age": {
+        "0.0": "below_human",
+        "0.25": "below_human",
+        "0.5": "below_human",
+        "1.0": "below_human"
+      },
+      "rec_sq_freq": {
+        "0.0": "below_human",
+        "0.25": "below_human",
+        "0.5": "below_human",
+        "1.0": "below_human"
+      }
+    },
+    "robust_beats": [],
+    "holdout": {
+      "seed": 3379786821,
+      "suite": [
+        {
+          "name": "hold_loop",
+          "dist": "param:period=65;noise=0.05;skew=0.0",
+          "seeds": [
+            355373,
+            267877,
+            489102
+          ]
+        },
+        {
+          "name": "hold_zipfx",
+          "dist": "zipfx:e=2.19",
+          "seeds": [
+            355373,
+            267877,
+            489102
+          ]
+        },
+        {
+          "name": "hold_drift",
+          "dist": "drift",
+          "seeds": [
+            355386,
+            267890,
+            489115
+          ]
+        }
+      ],
+      "margins": {
+        "ad_thrash": {
+          "bench_margin": 0.0349,
+          "holdout_margin": -0.1706,
+          "comparator": "wtlfu2",
+          "overfit": true
+        },
+        "ad_guard15": {
+          "bench_margin": 0.0591,
+          "holdout_margin": -0.1367,
+          "comparator": "wtlfu2",
+          "overfit": true
+        }
+      }
+    },
+    "behavioral_distance": {
+      "rec_logf": {
+        "nearest": "arc4",
+        "distance": 0.0217
+      },
+      "lfu_aged": {
+        "nearest": "lru_bump_both_4",
+        "distance": 0.0137
+      },
+      "lfu_aged2": {
+        "nearest": "lfu_aged",
+        "distance": 0.0226
+      },
+      "decay_hit": {
+        "nearest": "lru_bump_both_2",
+        "distance": 0.0
+      },
+      "score_half": {
+        "nearest": "lfu_bump_both_4",
+        "distance": 0.0207
+      },
+      "rec_plus_f": {
+        "nearest": "rec_logf",
+        "distance": 0.0176
+      },
+      "freq_then_rec": {
+        "nearest": "lfu_bump_both_4",
+        "distance": 0.0
+      },
+      "idle_penalty": {
+        "nearest": "lru_bump_both_4",
+        "distance": 0.006
+      },
+      "aged_logf": {
+        "nearest": "lfu_aged2",
+        "distance": 0.0045
+      },
+      "scan_resist": {
+        "nearest": "lfu_bump_both_4",
+        "distance": 0.0
+      },
+      "ad_thrash": {
+        "nearest": "lru_bump_both_4",
+        "distance": 0.2562
+      },
+      "ad_guard15": {
+        "nearest": "twoq4",
+        "distance": 0.2247
+      },
+      "freq_over_age": {
+        "nearest": "score_half",
+        "distance": 0.0235
+      },
+      "rec_sq_freq": {
+        "nearest": "rec_plus_f",
+        "distance": 0.1567
+      }
+    },
+    "exposed_on": {
+      "rec_logf": [
+        "adv_loop",
+        "gen_sawtooth",
+        "param_p45_n30"
+      ],
+      "lfu_aged": [
+        "adv_loop",
+        "gen_sawtooth",
+        "param_p25_n30",
+        "param_p45_n30",
+        "param_p45_n5"
+      ],
+      "lfu_aged2": [
+        "adv_loop",
+        "gen_sawtooth",
+        "param_p25_n30",
+        "param_p45_n30",
+        "param_p45_n5"
+      ],
+      "decay_hit": [
+        "adv_loop",
+        "gen_sawtooth",
+        "param_p25_n30",
+        "param_p45_n30",
+        "param_p45_n5"
+      ],
+      "score_half": [
+        "adv_loop",
+        "gen_sawtooth",
+        "gen_slow_drift"
+      ],
+      "rec_plus_f": [
+        "adv_loop",
+        "gen_sawtooth",
+        "param_p45_n30"
+      ],
+      "freq_then_rec": [
+        "adv_loop",
+        "gen_sawtooth",
+        "gen_slow_drift"
+      ]
+    },
+    "mechanisms": {
+      "rec_logf": "reads {fr, la}; branchless",
+      "lfu_aged": "reads {fr, la, t}; branchless",
+      "lfu_aged2": "reads {fr, la, t}; branchless",
+      "decay_hit": "reads {la}; branchless",
+      "score_half": "reads {fr, ins, la, t}; branchless",
+      "rec_plus_f": "reads {fr, la}; branchless",
+      "freq_then_rec": "reads {fr, la}; branchless",
+      "idle_penalty": "reads {fr, la, t}; branchless",
+      "aged_logf": "reads {fr, la, t}; branchless",
+      "scan_resist": "reads {fr, ins, t}; branchless",
+      "ad_thrash": "reads {aux, fr, la}; 1 branch(es); aux-driven regime switch; custom aux dynamics",
+      "ad_guard15": "reads {aux, fr, la}; 1 branch(es); aux-driven regime switch; custom aux dynamics",
+      "freq_over_age": "reads {fr, la, t}; branchless",
+      "rec_sq_freq": "reads {fr, la}; branchless"
+    },
+    "booleans": {
+      "any_robust_beats": false,
+      "all_robust_beats_are_adaptive": false,
+      "any_winner_exposed": false,
+      "any_fragile_winner": false
+    }
+  }
+}
