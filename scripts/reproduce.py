@@ -23,10 +23,13 @@ VARIES = {"run_id", "holdout", "template_hash"}
 
 
 def fresh_run() -> Path:
-    before = set((ROOT / "runs").glob("*")) if (ROOT / "runs").exists() else set()
+    def runs() -> set:
+        return {p for p in (ROOT / "runs").glob("*_cache_eviction_*") if p.is_dir()}
+
+    before = runs() if (ROOT / "runs").exists() else set()
     subprocess.run([sys.executable, "-m", "rde", "--backend", "deterministic",
                     "--domain", "cache_eviction", "--quiet"], cwd=ROOT, check=True)
-    new = sorted(set((ROOT / "runs").glob("*")) - before)
+    new = sorted(runs() - before)
     if not new:
         sys.exit("FAIL: the engine wrote no run directory")
     return new[-1]
