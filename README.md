@@ -28,27 +28,47 @@ winner, and anyone can watch it do so again.
 
 ## Five minutes
 
-Python 3.11+, standard library only. No install step, no API key.
+Python 3.11 or newer, standard library only. No install step, no API key. The
+commands below say `python`; where only `python3` exists (a stock Ubuntu), use that.
 
 ```bash
 git clone https://github.com/NexumCorpus/recursive-discovery-engine
 cd recursive-discovery-engine
 
 python -m rde --backend deterministic        # toy domain (top-k), ~2 s: watch the loop disqualify, synthesize, accept
-python scripts/reproduce.py                  # the v11 headline, ~3 min: re-runs cache eviction, diffs vs the cited run
+python scripts/reproduce.py                  # the v11 headline, 3 to 6 min by machine: re-runs cache eviction, diffs vs the cited run
 ```
 
 `reproduce.py` prints `REPRODUCED: 24/24 headline fields identical` and the
 fresh holdout margins. Your holdout seed differs from ours, so your margins
 differ; the verdict (every winner OVERFIT) should not.
 
+**Run it on an idle machine.** The loop's proposal path reads wall-clock timings
+(behavioural novelty decides at iteration 3 whether a round counts as stale), so a
+loaded or just-started machine can send a run down a different path and make
+`reproduce.py` exit 1 with `DRIFT` lines. In an independent clean-VM check, 3 of 4
+runs printed `REPRODUCED: 24/24`; the fourth differed in `frontier_hypervolume` and
+`frontier_points` only, and all four marked every winner OVERFIT. Re-run on an
+otherwise idle machine before reading a mismatch as a regression; if it persists,
+that is a finding, so please open an issue. [docs/V11_NOTES.md](docs/V11_NOTES.md)
+records the same sensitivity.
+
 Optional:
 
 ```bash
-pip install pytest && python -m pytest       # 170 tests, ~15 min (the engine tests run real loops)
-python scripts/check_claims.py evidence/runs/20260610_115502_cache_eviction_deterministic   # README vs claims.json
-python -m rde --backend llm --profile cheap --iterations 6   # live, three vendors; needs OPENROUTER_API_KEY (.env.example)
+# On Debian/Ubuntu, pip refuses system-wide installs ("externally-managed-environment") for a
+# normal user, so make a venv first (Windows: .venv\Scripts\activate):
+python3 -m venv .venv && . .venv/bin/activate
+pip install pytest && python -m pytest       # 181 tests, ~30 min (27 min on GitHub CI; the engine tests run real loops)
+python scripts/check_claims.py evidence/runs/20260610_115502_cache_eviction_deterministic   # README vs the cited claims.json
+python -m rde --backend llm --profile cheap --iterations 6   # live, three vendors; needs OPENROUTER_API_KEY (.env.example); not run by CI
 ```
+
+`check_claims.py` checks the numbers this README quotes for the cited run against
+that run's `claims.json`. It is not a check of your own run (it fails on one by
+design, since the README cites the run id above); `reproduce.py` is the check for
+your own run. CI runs the test suite on Python 3.11, 3.12 and 3.13, and
+`reproduce.py` on 3.13.
 
 ## Evidence
 
@@ -113,7 +133,9 @@ example" is a live and informative possibility.
 **A-bar FROZEN** (dual-validated ARC, 2Q + W-TinyLFU, 5-seed benchmark, declared
 beats/fragile semantics with selection-penalised threshold, charge sweep,
 holdout) → `6b175f8` Half B (ghost observable, `adyn` dynamics, rubric scrub) →
-this commit (Half C: behavioral provenance, audit bundles, claim completions).
+`8e588e9` Half C (behavioral provenance, audit bundles, claim completions) →
+`0c221ba` / `e0b4203` make the headline re-derivable from a fresh clone
+(`scripts/reproduce.py`).
 
 ## What it does not claim
 
@@ -228,7 +250,7 @@ rde/
   cli.py          `python -m rde ... --domain {topk,heavy_hitters,cache_eviction}`
 skills/           v6.5 extracted skills (ast-safety-screen, grounded-code-execution,
                   pareto-frontier, multi-role-discovery) — loadable, stdlib-only
-tests/            170 tests: grounding, fingerprint, signals, llm, engine, v3–v11, skills
+tests/            181 tests: grounding, fingerprint, signals, llm, engine, v3–v11, skills
 scripts/          reproduce.py (headline re-derivation), check_claims.py (README vs claims.json)
 evidence/runs/    the cited v11 run: claims.json + audit bundle, committed so it can be checked
 runs/             per-run artifacts: result.json, iterations.jsonl, report.txt, best_solution.py
