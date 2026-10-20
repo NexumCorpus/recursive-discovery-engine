@@ -1,12 +1,20 @@
 """Re-derive the v11 headline from a fresh clone and diff it against the cited run.
 
-Usage:  python scripts/reproduce.py              # runs the engine (~3 min), then compares
+Usage:  python scripts/reproduce.py              # runs the engine (2 to 6 min), then compares
         python scripts/reproduce.py runs/<id>    # compares an existing run
 
-The deterministic backend is reproducible, so every headline number in the cited
-run's claims.json must come back identical. The holdout is the exception by
-design: it is redrawn from a fresh seed each run, so its margins move. What must
-NOT move is its verdict: every in-run winner still loses on the holdout (overfit).
+The grading is deterministic, and on an idle machine the loop's proposal path is
+too, so every headline number in the cited run's claims.json should come back
+identical. The holdout is the exception by design: it is redrawn from a fresh seed
+each run, so its margins move. What must NOT move is its verdict: every in-run
+winner still loses on the holdout (overfit).
+
+Caveat: the proposal path reads wall-clock timings (rde/behavior.py behavioural
+novelty, the noise-aware stall detector), so a loaded or just-started machine can
+send a run down a different path. In an independent clean-VM check, 3 of 4 runs
+matched all 24 fields and the fourth differed in frontier_hypervolume and
+frontier_points. Re-run on an idle machine before reading a mismatch as a
+regression (docs/V11_NOTES.md records the same sensitivity).
 Exit 0 = reproduced; exit 1 = drift (each difference printed).
 """
 
@@ -57,6 +65,9 @@ def main() -> int:
     same = len(cited) - len(VARIES & set(cited))
     if bad:
         print(f"FAIL: {len(bad)} difference(s) vs {CITED.name}")
+        print("note: the loop's proposal path reads wall-clock timings, so a loaded or "
+              "just-started machine can drift here (docs/V11_NOTES.md). Re-run on an "
+              "idle machine; if the difference persists, that is a finding - open an issue.")
         return 1
     print(f"REPRODUCED: {same}/{same} headline fields identical to {CITED.name}; "
           f"fresh holdout (seed {fresh['holdout']['seed']}) marks all "
