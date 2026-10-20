@@ -36,7 +36,7 @@ git clone https://github.com/NexumCorpus/recursive-discovery-engine
 cd recursive-discovery-engine
 
 python -m rde --backend deterministic        # toy domain (top-k), ~2 s: watch the loop disqualify, synthesize, accept
-python scripts/reproduce.py                  # the v11 headline, 3 to 6 min by machine: re-runs cache eviction, diffs vs the cited run
+python scripts/reproduce.py                  # the v11 headline, 2 to 6 min by machine: re-runs cache eviction, diffs vs the cited run
 ```
 
 `reproduce.py` prints `REPRODUCED: 24/24 headline fields identical` and the
@@ -59,7 +59,7 @@ Optional:
 # On Debian/Ubuntu, pip refuses system-wide installs ("externally-managed-environment") for a
 # normal user, so make a venv first (Windows: .venv\Scripts\activate):
 python3 -m venv .venv && . .venv/bin/activate
-pip install pytest && python -m pytest       # 181 tests, ~30 min (27 min on GitHub CI; the engine tests run real loops)
+pip install pytest && python -m pytest       # 181 tests, 12 to 31 min by machine, 27 on GitHub CI (the engine tests run real loops)
 python scripts/check_claims.py evidence/runs/20260610_115502_cache_eviction_deterministic   # README vs the cited claims.json
 python -m rde --backend llm --profile cheap --iterations 6   # live, three vendors; needs OPENROUTER_API_KEY (.env.example); not run by CI
 ```

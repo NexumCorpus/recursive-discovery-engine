@@ -1,6 +1,6 @@
 """Re-derive the v11 headline from a fresh clone and diff it against the cited run.
 
-Usage:  python scripts/reproduce.py              # runs the engine (3 to 6 min), then compares
+Usage:  python scripts/reproduce.py              # runs the engine (2 to 6 min), then compares
         python scripts/reproduce.py runs/<id>    # compares an existing run
 
 The grading is deterministic, and on an idle machine the loop's proposal path is
